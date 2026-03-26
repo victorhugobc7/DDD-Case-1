@@ -14,8 +14,6 @@ Este projeto implementa a modelagem arquitetural de um **sistema de gestão de o
 - **Faturamento em Lotes TISS** (padrão obrigatório ANS)
 - **Auditoria e Glosas** (controle de fraude e pertinência)
 
-O projeto demonstra uma evolução de design: partindo de um **modelo conceitual simplista** (v1.0) para um **modelo alinhado aos padrões reais de mercado** (v2.0), seguindo os regulamentos da Agência Nacional de Saúde Suplementar (ANS) e o padrão TISS (Troca de Informações em Saúde Suplementar).
-
 ---
 
 ## Visão Geral do Projeto
@@ -77,7 +75,7 @@ A **v1.0** representa o design inicial do sistema, onde estruturamos as entidade
 
 ### Propósito
 
-A **v2.0** incorpora os requisitos reais da regulamentação brasileira, alinhando-se aos padrões obrigatórios da ANS e TISS. Esta versão é **production-ready** e reflete a complexidade real do mercado de saúde suplementar.
+A **v2.0** incorpora os requisitos reais da regulamentação brasileira, alinhando-se aos padrões obrigatórios da ANS e TISS. Esta versão reflete a complexidade real do mercado de saúde suplementar.
 
 ### Diagrama de Classes (v2.0)
 
