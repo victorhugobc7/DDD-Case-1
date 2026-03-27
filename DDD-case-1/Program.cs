@@ -1,7 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using System;
 
-var operadora = new OperadoraDeSaude { cnpj = "00.000.000/0001-00", nomeFantasia = "SaudeExemplo" };
+var operadora = new OperadoraSaude { cnpj = "00.000.000/0001-00", nomeFantasia = "SaudeExemplo" };
 var plano = new Plano { codigoPlano = "PL-001", tipoContratado = TipoPlano.Individual };
 var beneficiario = new Beneficiario { carteira = "12345", nome = "João Silva", dataAdesao = DateTime.Now.AddDays(-40) };
 var procedimento = new Procedimento { codigoTUSS = "001", descricao = "Consulta Generalista", categoria = TipoProcedimento.Consulta, exigeAutorizacaoPrevia = true, valorBase = 200 };

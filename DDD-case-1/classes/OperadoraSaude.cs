@@ -1,6 +1,6 @@
 using System;
 
-class OperadoraDeSaude
+class OperadoraSaude
 {
 	public string cnpj { get; set; } = string.Empty;
 	public string nomeFantasia { get; set; } = string.Empty;

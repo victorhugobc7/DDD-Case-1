@@ -12,7 +12,7 @@ class Clinica
 		return s;
 	}
 
-	public void enviarFaturamento(Faturamento f, OperadoraDeSaude op)
+	public void enviarFaturamento(Faturamento f, OperadoraSaude op)
 	{
 		op.processarFaturamento(f);
 	}
