@@ -1,3 +1,5 @@
+using System;
+
 class ExecucaoProcedimento
 {
     public string idExecucao { get; set; } = string.Empty;
@@ -6,5 +8,6 @@ class ExecucaoProcedimento
 
     public void registrar()
     {
+        dataHoraRealizacao = DateTime.Now;
     }
 }

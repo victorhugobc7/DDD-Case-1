@@ -4,7 +4,8 @@ class Glosa
 	public string descricaoMotivo { get; set; } = string.Empty;
 	public double valorGlosado { get; set; }
 
-	public void aplicarGlosa()
+	public double aplicarGlosa(double valor)
 	{
+		return Math.Min(valor, valorGlosado);
 	}
 }

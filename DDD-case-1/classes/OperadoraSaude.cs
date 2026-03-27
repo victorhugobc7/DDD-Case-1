@@ -1,3 +1,5 @@
+using System;
+
 class OperadoraDeSaude
 {
 	public string cnpj { get; set; } = string.Empty;
@@ -5,9 +7,25 @@ class OperadoraDeSaude
 
 	public void processarFaturamento(Faturamento f)
 	{
+		if (f.valorTotalCobrado <= 0)
+		{
+			f.status = StatusFaturamento.Glosado;
+		}
+		else
+		{
+			f.status = StatusFaturamento.Aprovado;
+		}
 	}
 
-	public void avaliarAutorizacao(SolicitacaoAutorizacao s)
+	public void avaliarAutorizacao(SolicitacaoAutorizacao s, Procedimento p)
 	{
+		if (p.valorBase <= 1000)
+		{
+			s.aprovar();
+		}
+		else
+		{
+			s.negar();
+		}
 	}
 }

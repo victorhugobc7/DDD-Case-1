@@ -1,3 +1,5 @@
+using System;
+
 class SolicitacaoAutorizacao
 {
     public string numeroProtocolo { get; set; } = string.Empty;
@@ -8,9 +10,11 @@ class SolicitacaoAutorizacao
 
     public void aprovar()
     {
+        status = StatusAutorizacao.Aprovada;
     }
 
     public void negar()
     {
+        status = StatusAutorizacao.Negada;
     }
 }

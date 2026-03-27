@@ -4,7 +4,9 @@ class Beneficiario
 	public string nome { get; set; } = string.Empty;
 	public DateTime dataAdesao { get; set; }
 
-	public void verificarStatus()
+	public bool verificarStatus()
 	{
+		var ativo = (DateTime.Now - dataAdesao).TotalDays >= 0;
+		return ativo;
 	}
 }
