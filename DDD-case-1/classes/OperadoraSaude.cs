@@ -7,7 +7,7 @@ class OperadoraDeSaude
 	{
 	}
 
-	public void avaliarAutorizacao(SolicitacaoAutorizacao s)
+	public void avaliarAutorizacao(Solicitacao s)
 	{
 	}
 }
