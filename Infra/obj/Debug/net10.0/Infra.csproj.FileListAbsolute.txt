@@ -13,3 +13,19 @@ C:\Users\Dell\Documents\Projetos Github\Design e Melhoria de Software\DDD exempl
 C:\Users\Dell\Documents\Projetos Github\Design e Melhoria de Software\DDD exemplo 1 - transações bancárias online\Infra\obj\Debug\net10.0\refint\Infra.dll
 C:\Users\Dell\Documents\Projetos Github\Design e Melhoria de Software\DDD exemplo 1 - transações bancárias online\Infra\obj\Debug\net10.0\Infra.pdb
 C:\Users\Dell\Documents\Projetos Github\Design e Melhoria de Software\DDD exemplo 1 - transações bancárias online\Infra\obj\Debug\net10.0\ref\Infra.dll
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\bin\Debug\net10.0\Infra.deps.json
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\bin\Debug\net10.0\Infra.dll
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\bin\Debug\net10.0\Infra.pdb
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\bin\Debug\net10.0\Domain.dll
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\bin\Debug\net10.0\Domain.pdb
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.csproj.AssemblyReference.cache
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.AssemblyInfoInputs.cache
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.AssemblyInfo.cs
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.csproj.CoreCompileInputs.cache
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.sourcelink.json
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.csproj.Up2Date
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.dll
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\refint\Infra.dll
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\Infra.pdb
+C:\Users\Mateus\Documents\GitHub\DDD-Case-1\Infra\obj\Debug\net10.0\ref\Infra.dll

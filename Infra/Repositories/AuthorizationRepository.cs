@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
-using Domain.Entities;
-using Domain.Interfaces;
+using Domain.Modules.Autorizacoes;
 
 namespace Infra.Repositories;
 

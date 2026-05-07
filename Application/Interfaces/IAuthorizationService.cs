@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Application.DTOs;
-using Domain.Enums;
+using Domain.Modules.Auditoria;
 
 namespace Application.Interfaces;
 

@@ -1,10 +1,11 @@
 using Application.DTOs;
 using Application.Services;
-using Domain.Entities;
-using Domain.Enums;
-using Domain.Factories;
-using Domain.Services;
-using Domain.ValueObjects;
+using Domain.Modules.Auditoria;
+using Domain.Modules.Autorizacoes;
+using Domain.Modules.Beneficiarios;
+using Domain.Modules.Planos;
+using Domain.Modules.Procedimentos;
+using Domain.Modules.RedeCredenciada;
 using Infra.Repositories;
 
 namespace Tests;

@@ -4,9 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Application.DTOs;
 using Application.Interfaces;
-using Domain.Enums;
-using Domain.Factories;
-using Domain.Interfaces;
+using Domain.Modules.Auditoria;
+using Domain.Modules.Autorizacoes;
 
 namespace Application.Services;
 
@@ -89,7 +88,7 @@ public class AuthorizationService : IAuthorizationService
         };
     }
 
-    private async Task<Domain.Entities.AuthorizationRequest> GetRequiredAuthorizationAsync(Guid authorizationId)
+    private async Task<AuthorizationRequest> GetRequiredAuthorizationAsync(Guid authorizationId)
     {
         var authorization = await _authorizationRepository.GetByIdAsync(authorizationId);
         if (authorization == null)
