@@ -10,7 +10,7 @@ public class AuthorizationRepository : IAuthorizationRepository
 {
     private readonly ConcurrentDictionary<Guid, AuthorizationRequest> _database = new();
 
-    public Task<AuthorizationRequest> GetByIdAsync(Guid id)
+    public Task<AuthorizationRequest?> GetByIdAsync(Guid id)
     {
         _database.TryGetValue(id, out var authorizationRequest);
         return Task.FromResult(authorizationRequest);

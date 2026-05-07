@@ -1,5 +1,6 @@
 using System;
 using Domain.Entities;
+using Domain.Enums;
 
 namespace Domain.Services;
 
@@ -13,6 +14,9 @@ public class EligibilityService
             throw new ArgumentNullException(nameof(plan));
         if (procedure == null)
             throw new ArgumentNullException(nameof(procedure));
+
+        if (beneficiary.Status != BeneficiaryStatus.Ativo)
+            throw new InvalidOperationException("Beneficiário inativo não pode ter autorização aprovada.");
 
         if (beneficiary.PlanId != plan.Id)
             throw new InvalidOperationException("O beneficiário não pertence ao plano informado.");

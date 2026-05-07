@@ -19,6 +19,9 @@ public static class AuthorizationRequestFactory
         List<string> materialsAndMedicines, 
         bool isUrgentOrEmergency)
     {
+        if (materialsAndMedicines == null || !materialsAndMedicines.Any())
+            throw new ArgumentException("A solicitação deve conter pelo menos um material, medicamento ou item solicitado.", nameof(materialsAndMedicines));
+
         var planNumberVo = new PlanNumber(planNumber);
         var procedureCodeVo = new ProcedureCode(procedureCode);
         var cidCodeVo = new CidCode(clinicalJustification);

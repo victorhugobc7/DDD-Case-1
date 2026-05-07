@@ -1,8 +1,10 @@
 # Sistema de Gestão de Operadora de Saúde (DDD Case)
 
-**Versão:** 2.0  
-**Status:** Documentação Inicial  
-**Última Atualização:** Março de 2026
+**Versão da entrega implementada:** DDD tático v1
+
+**Status:** Implementação demonstrável do fluxo de Autorização de Procedimento
+
+**Última Atualização:** Maio de 2026
 
 ---
 
@@ -13,6 +15,28 @@ Este projeto implementa a modelagem arquitetural de um **sistema de gestão de o
 - **Execução de Procedimentos** (rastreabilidade médica)
 - **Faturamento em Lotes TISS** (padrão obrigatório ANS)
 - **Auditoria e Glosas** (controle de fraude e pertinência)
+
+O código atual implementa o recorte **DDD tático v1**, concentrado em Autorização de Procedimento. Os tópicos ANS/TISS v2, GuiaTISS, FaturamentoXML e Auditoria formal permanecem descritos como evolução futura do modelo.
+
+---
+
+## Estado da Implementação
+
+Projetos:
+
+- `Domain`: entidades, value objects, enums, factory, repositories de contrato e domain service de elegibilidade.
+- `Application`: DTOs e `AuthorizationService`, coordenando casos de uso sem concentrar regra de negócio.
+- `Infra`: repository em memória para demonstração.
+- `UI`: console demonstrando solicitação pendente, aprovação parcial e urgência/emergência com auditoria posterior.
+- `Tests`: runner de testes sem dependências externas.
+
+Validação esperada com SDK .NET compatível com `net10.0`:
+
+```bash
+dotnet build HealthInsurance.slnx
+dotnet run --project Tests/Tests.csproj
+dotnet run --project UI/UI.csproj
+```
 
 ---
 

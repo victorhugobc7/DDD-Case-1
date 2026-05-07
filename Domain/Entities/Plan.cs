@@ -15,6 +15,8 @@ public class Plan
     
     public Plan(Guid id, string number, PlanType type, decimal copayPercentage)
     {
+        if (id == Guid.Empty)
+            throw new ArgumentException("O id do plano é inválido.", nameof(id));
         if (string.IsNullOrWhiteSpace(number))
             throw new ArgumentException("O número do plano não pode ser vazio.", nameof(number));
         if (copayPercentage < 0 || copayPercentage > 100)
@@ -37,6 +39,9 @@ public class Plan
 
     public bool IsGracePeriodFulfilled(ProcedureType procedureType, DateTime joinDate, DateTime requestDate)
     {
+        if (requestDate.Date < joinDate.Date)
+            return false;
+
         if (!_gracePeriodsInDays.TryGetValue(procedureType, out var daysRequired))
         {
             return true;
