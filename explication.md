@@ -1,107 +1,128 @@
-# Explicacoes sobre DDD tatico no projeto
+# Explicacao simples sobre DDD tatico no projeto
 
-Este arquivo complementa o README explicando melhor os pontos 4 e 7 da atividade:
+Este arquivo explica, de forma mais simples, os termos usados no README e como eles aparecem no codigo.
 
-- quais aggregates foram definidos;
-- o que e um aggregate;
-- o que significam os termos tecnicos usados;
-- onde entram factories, services, repositories, application services e use cases.
+O foco e responder:
 
-O objetivo aqui nao e trocar a implementacao, mas deixar claro como ler o modelo atual.
-
----
-
-## 1. Ideia central do DDD tatico
-
-DDD significa Domain-Driven Design. A ideia principal e modelar o software a partir das regras e palavras do negocio.
-
-Neste projeto, o negocio e uma operadora de saude. Por isso, o codigo usa conceitos como:
-
-- beneficiario;
-- plano;
-- procedimento;
-- autorizacao;
-- item solicitado;
-- conta hospitalar;
-- glosa;
-- recurso administrativo.
-
-Em vez de criar apenas classes genericas como `Cadastro`, `Processador` ou `Registro`, o modelo tenta representar objetos que fazem sentido para quem entende o dominio da saude suplementar.
+- o que e aggregate;
+- o que e aggregate root;
+- onde estao os aggregate roots;
+- o que sao entity, value object, enum, factory, service e repository;
+- como as camadas `Domain`, `Application` e `Infra` conversam.
 
 ---
 
-## 2. Glossario dos termos tecnicos
+## 1. Ideia principal
 
-### Domain
+DDD significa Domain-Driven Design.
 
-`Domain` e o projeto onde ficam as regras de negocio.
+Em portugues simples: e uma forma de organizar o codigo usando as palavras e regras do negocio.
 
-Neste repositorio, ele esta em:
+Neste projeto, o negocio e uma operadora de saude. Por isso o codigo usa nomes como:
+
+- `Beneficiary`
+- `Plan`
+- `ProcedureCatalogItem`
+- `AuthorizationRequest`
+- `RequestedItem`
+- `HospitalBill`
+- `BillItem`
+- `Glosa`
+- `AdministrativeAppeal`
+
+Esses nomes nao sao apenas "classes". Eles representam coisas reais do dominio.
+
+---
+
+## 2. Como o Domain esta organizado
+
+O projeto `Domain` guarda as regras de negocio.
+
+Hoje ele esta separado por tipo:
 
 ```text
 Domain/
+  Aggregates/
+  ValueObjects/
+  Enums/
+  Factories/
+  Services/
+  Repositories/
 ```
 
-Exemplos:
-
-- `AuthorizationRequest` sabe aprovar, negar e marcar pendencia de uma solicitacao.
-- `RequestedItem` sabe controlar quantidade solicitada e aprovada.
-- `EligibilityService` sabe validar elegibilidade cruzando beneficiario, plano e procedimento.
-
-O dominio nao deveria depender de tela, banco de dados, API HTTP ou console. Ele representa a regra principal do sistema.
-
-### Module
-
-Modulo e uma divisao do dominio por assunto de negocio.
-
-Neste projeto, os modulos aparecem como subpastas dentro das pastas por tipo:
+Cada pasta ainda pode ter subpastas por assunto de negocio, como:
 
 ```text
-Domain/Aggregates/
-Domain/ValueObjects/
-Domain/Enums/
-Domain/Factories/
-Domain/Services/
-Domain/Repositories/
+Autorizacoes
+Beneficiarios
+Planos
+Procedimentos
+Faturamento
+Auditoria
 ```
 
-Exemplos:
+Exemplo:
 
-- `Autorizacoes`
-- `Beneficiarios`
-- `Planos`
-- `Procedimentos`
-- `Faturamento`
-- `Auditoria`
+```text
+Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs
+Domain/ValueObjects/Planos/PlanNumber.cs
+Domain/Factories/Autorizacoes/AuthorizationRequestFactory.cs
+Domain/Repositories/Autorizacoes/IAuthorizationRepository.cs
+```
 
-Essa divisao evita misturar regras de autorizacao com regras de faturamento, auditoria ou plano.
+---
+
+## 3. Glossario simples
+
+### Domain
+
+`Domain` e onde ficam as regras importantes do negocio.
+
+Exemplo:
+
+- uma autorizacao precisa ter item;
+- uma autorizacao pendente pode ser aprovada;
+- uma glosa precisa ter justificativa;
+- uma glosa so pode ter um recurso ativo.
+
+Essas regras nao devem ficar na tela, no banco de dados ou no console. Elas ficam no dominio.
 
 ### Entity
 
-Entity e um objeto com identidade propria.
+Entity e uma classe que tem identidade.
 
-Mesmo que seus dados mudem, ele continua sendo o mesmo objeto porque tem um `Id` ou alguma identidade equivalente.
+Ou seja: ela representa uma coisa especifica no sistema.
 
-Exemplo:
+Normalmente aparece com `Id`.
+
+Exemplos:
+
+- `AuthorizationRequest`
+- `RequestedItem`
+- `Beneficiary`
+- `Plan`
+- `HospitalBill`
+- `BillItem`
+- `Glosa`
+- `AdministrativeAppeal`
+
+Exemplo simples:
 
 ```csharp
 public Guid Id { get; private set; }
 ```
 
-No projeto:
-
-- `AuthorizationRequest` e uma entity porque possui `Id` e ciclo de vida proprio.
-- `Beneficiary` e uma entity porque representa um beneficiario especifico.
-- `HospitalBill` e uma entity porque representa uma conta hospitalar especifica.
-- `Glosa` e uma entity porque representa uma glosa especifica aplicada a um item faturado.
+Se os dados mudam, o objeto continua sendo o mesmo porque o `Id` continua sendo o mesmo.
 
 ### Value Object
 
-Value Object e um objeto que nao e definido por identidade, mas pelo valor que carrega.
+Value Object e uma classe que representa um valor.
 
-Dois value objects com o mesmo valor representam a mesma coisa conceitualmente.
+Ela nao precisa de `Id`.
 
-Exemplos no projeto:
+O que importa e o valor que ela carrega.
+
+Exemplos:
 
 - `PlanNumber`
 - `ProcedureCode`
@@ -109,53 +130,52 @@ Exemplos no projeto:
 - `ProfessionalRegistry`
 - `Evidence`
 
-Um `PlanNumber` serve para proteger o conceito "numero do plano". Em vez de espalhar `string` por todo o codigo, o sistema usa um tipo proprio que pode validar esse valor.
+Por que usar value object?
 
-### Invariant
+Porque ele evita espalhar `string` solta pelo sistema.
 
-Invariant e uma regra que nunca pode ser quebrada dentro do modelo.
+Em vez de passar qualquer texto como numero do plano, o codigo usa:
+
+```text
+PlanNumber
+```
+
+Isso deixa o dominio mais claro e permite validar esse valor em um lugar so.
+
+### Enum
+
+Enum representa uma lista fechada de opcoes.
 
 Exemplos:
 
-- uma autorizacao precisa ter pelo menos um item;
-- um item solicitado precisa ter quantidade maior que zero;
-- uma solicitacao negada precisa ter justificativa;
-- apenas solicitacoes pendentes podem receber decisao;
-- uma glosa so pode ter um recurso administrativo ativo.
+- `AuthorizationStatus`
+- `BeneficiaryStatus`
+- `PlanType`
+- `ProcedureType`
+- `GlosaReason`
+- `AppealStatus`
 
-Aggregates existem principalmente para proteger invariants.
-
-### Aggregate
-
-Aggregate é um conjunto de objetos do domínio que deve ser tratado como uma única unidade de consistência.
-
-Em termos práticos, um aggregate garante que regras que envolvem vários objetos sejam aplicadas de forma atômica: ninguém pode alterar uma parte do conjunto deixando o todo em estado inválido.
-
-Características importantes:
-- Tem uma raiz (Aggregate Root) que é o único ponto de acesso externo ao aggregate.
-- Contém entidades e value objects internos que só podem ser alterados pela raiz.
-- Define métodos que aplicam e protegem as invariantes do conjunto.
-
-Exemplo simples:
+Exemplo de uso:
 
 ```text
-AuthorizationRequest (Aggregate Root)
-  ├─ RequestedItem (entidade interna)
-  └─ RequestedItem (entidade interna)
+AuthorizationStatus.Pendente
+AuthorizationStatus.Negada
+AuthorizationStatus.AprovadaIntegralmente
 ```
 
-Se uma regra precisa verificar ou alterar vários itens (por exemplo, aprovar parcialmente), essa lógica deve ficar dentro de AuthorizationRequest, garantindo consistência.
+Isso evita usar texto solto como `"pendente"` ou `"negada"` em varias partes do codigo.
 
-Em outras palavras: quando uma regra envolve varios objetos ao mesmo tempo, eles devem ficar dentro do mesmo aggregate para que ninguem altere uma parte e deixe o conjunto em estado invalido.
+---
 
-Um aggregate geralmente possui:
+## 4. O que e aggregate
 
-- uma raiz, chamada Aggregate Root;
-- entidades internas;
-- value objects;
-- metodos que protegem as regras do conjunto.
+Aggregate e um grupo de objetos que precisa ficar consistente junto.
 
-Exemplo simples:
+Pense assim:
+
+> Se uma regra mexe em mais de um objeto ao mesmo tempo, esses objetos provavelmente pertencem ao mesmo aggregate.
+
+Exemplo:
 
 ```text
 AuthorizationRequest
@@ -163,191 +183,142 @@ AuthorizationRequest
   RequestedItem
 ```
 
-A autorizacao e a unidade principal. Os itens existem dentro dela. A aprovacao parcial precisa olhar para os itens, validar se eles pertencem a solicitacao e conferir as quantidades.
+Uma autorizacao tem itens.
 
-Por isso, a regra fica em `AuthorizationRequest.ApprovePartially(...)`, e nao espalhada fora do dominio.
+Quando aprova parcialmente uma autorizacao, o sistema precisa validar:
 
-### Aggregate Root
+- se a autorizacao ainda esta pendente;
+- se os itens informados pertencem a essa autorizacao;
+- se a quantidade aprovada nao passa da quantidade solicitada;
+- se pelo menos alguma quantidade foi aprovada;
+- se o status final da autorizacao deve mudar.
 
-Aggregate Root e a entidade principal do aggregate.
+Essa regra nao deve ficar espalhada.
 
-Ela funciona como a porta de entrada para alterar o conjunto.
+Ela fica dentro de `AuthorizationRequest`.
 
-Regra pratica: codigo de fora do aggregate deve chamar metodos da raiz, nao sair alterando entidades internas diretamente.
+Por isso `AuthorizationRequest` e um aggregate.
 
-No projeto, `AuthorizationRequest` e a principal Aggregate Root porque controla:
+---
+
+## 5. O que e aggregate root
+
+Aggregate Root e a classe principal do aggregate.
+
+Ela e a porta de entrada para alterar o aggregate.
+
+Regra pratica:
+
+> Quem esta fora do aggregate deve chamar a root, nao alterar os objetos internos diretamente.
+
+Exemplo:
+
+```text
+AuthorizationRequest
+  RequestedItem
+```
+
+O codigo de fora nao deveria aprovar um `RequestedItem` diretamente.
+
+O correto e chamar:
+
+```text
+AuthorizationRequest.ApproveFully()
+AuthorizationRequest.ApprovePartially(...)
+AuthorizationRequest.Deny(...)
+```
+
+Assim, `AuthorizationRequest` garante que o status e os itens fiquem corretos ao mesmo tempo.
+
+---
+
+## 6. Onde estao os aggregate roots no projeto
+
+Os aggregate roots ficam em:
+
+```text
+Domain/Aggregates/
+```
+
+### Principal aggregate root
+
+```text
+Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs
+```
+
+`AuthorizationRequest` e a principal root do projeto.
+
+Ela controla:
 
 - status da autorizacao;
-- lista de `RequestedItem`;
+- itens solicitados;
 - aprovacao integral;
 - aprovacao parcial;
 - negativa;
 - pendencia documental;
-- excecao de urgencia/emergencia;
+- urgencia/emergencia;
 - auditoria posterior.
 
-Isso impede que outra camada aprove um `RequestedItem` diretamente e esqueca de atualizar o status da autorizacao.
-
-### Consistency Boundary
-
-Consistency Boundary significa "limite de consistencia".
-
-E a fronteira dentro da qual as regras precisam estar corretas ao mesmo tempo.
-
-Exemplo:
-
-Ao aprovar parcialmente uma autorizacao, o sistema precisa garantir ao mesmo tempo que:
-
-- a autorizacao esta pendente;
-- os itens informados pertencem aquela autorizacao;
-- nenhuma quantidade aprovada passa da quantidade solicitada;
-- pelo menos alguma quantidade foi aprovada;
-- itens nao aprovados ficam com quantidade aprovada igual a zero;
-- o status final vira `AprovadaParcialmente`.
-
-Tudo isso acontece dentro do boundary de `AuthorizationRequest`.
-
-### Use Case
-
-Use Case representa uma acao que o sistema oferece para o usuario ou para outro sistema.
-
-Exemplos no projeto:
-
-- solicitar autorizacao;
-- aprovar autorizacao;
-- aprovar autorizacao parcialmente;
-- negar autorizacao;
-- registrar pendencia documental;
-- consultar status da autorizacao.
-
-Depois da separacao feita no projeto, esses casos ficam em:
+Ela contem:
 
 ```text
-Application/UseCases/Autorizacoes/
+RequestedItem
 ```
 
-O use case coordena o fluxo, mas nao deve concentrar regra de negocio. Ele chama o dominio para executar as regras.
-
-### DTO
-
-DTO significa Data Transfer Object.
-
-Ele e um objeto simples para transportar dados entre camadas.
-
-Exemplo:
+### Outros aggregate roots
 
 ```text
-AuthorizationRequestDto
+Domain/Aggregates/Faturamento/HospitalBill.cs
 ```
 
-Esse DTO recebe dados simples como `PlanNumber`, `ProcedureCode`, `ClinicalJustification` e `MaterialsAndMedicines`. Depois, o use case converte esses dados para objetos do dominio, como `PlanNumber`, `ProcedureCode`, `CidCode`, `ProfessionalRegistry` e `RequestedItem`.
-
-### Factory
-
-Factory e uma classe ou metodo responsavel por criar objetos quando a criacao tem alguma complexidade.
-
-Ela evita espalhar `new` e montagem manual por varias partes do sistema.
-
-No projeto:
+`HospitalBill` representa uma conta hospitalar e contem `BillItem`.
 
 ```text
-AuthorizationRequestFactory
+Domain/Aggregates/Auditoria/Glosa.cs
 ```
 
-Ela cria uma `AuthorizationRequest` completa e aplica a regra inicial de urgencia/emergencia quando necessario.
-
-### Domain Service
-
-Domain Service e um servico do dominio usado quando uma regra de negocio nao pertence naturalmente a uma unica entity ou aggregate.
-
-No projeto:
+`Glosa` controla o recurso administrativo (`AdministrativeAppeal`).
 
 ```text
-EligibilityService
+Domain/Aggregates/Beneficiarios/Beneficiary.cs
+Domain/Aggregates/Planos/Plan.cs
+Domain/Aggregates/Procedimentos/ProcedureCatalogItem.cs
 ```
 
-Ele valida elegibilidade cruzando:
+Esses sao aggregates simples de referencia.
 
-- `Beneficiary`
-- `Plan`
-- `ProcedureCatalogItem`
+Eles tem regras proprias, mas nao possuem uma estrutura interna tao grande quanto `AuthorizationRequest`.
 
-Essa regra nao fica bem dentro de apenas uma dessas classes, porque depende das tres ao mesmo tempo.
+### Observacao sobre BillItem
 
-### Application Service
-
-Application Service coordena a execucao de casos de uso na camada de aplicacao.
-
-Ele pode chamar use cases, repositories e objetos de dominio, mas nao deveria ser o lugar onde as regras principais do negocio vivem.
-
-No projeto:
+`BillItem` esta em:
 
 ```text
-AuthorizationService
+Domain/Aggregates/Faturamento/BillItem.cs
 ```
 
-Ele ficou como uma fachada para manter uma API simples para UI e testes, delegando a execucao para os use cases em `Application/UseCases/Autorizacoes`.
-
-### Repository
-
-Repository e uma abstracao para buscar e salvar aggregates.
-
-Ele permite que a regra de negocio fale "salve esta autorizacao" ou "busque esta autorizacao" sem saber se os dados estao em memoria, banco SQL, arquivo, API externa ou outro mecanismo.
-
-No dominio ficam os contratos:
+Ele concentra regras de glosa:
 
 ```text
-IAuthorizationRepository
-IHospitalBillRepository
+ApplyGlosa(...)
+ApplyClawbackAuditGlosa(...)
 ```
 
-Na infraestrutura fica a implementacao concreta:
+Mas, no modelo atual, ele tambem pode ser entendido como uma entity interna de `HospitalBill`, porque nao existe um repository proprio para `BillItem`.
 
-```text
-AuthorizationRepository
-```
+Em DDD mais rigoroso:
 
-No projeto atual, `AuthorizationRepository` salva em memoria usando `ConcurrentDictionary`, porque e uma demonstracao.
-
-### Infrastructure
-
-Infrastructure e a camada tecnica.
-
-Ela implementa detalhes como banco de dados, arquivos, mensageria, APIs externas e armazenamento.
-
-Neste projeto:
-
-```text
-Infra/
-```
-
-O dominio define o que precisa (`IAuthorizationRepository`). A infraestrutura decide como isso sera feito (`AuthorizationRepository` em memoria).
+- `HospitalBill` seria a root;
+- `BillItem` seria uma entity interna;
+- `Glosa` poderia ser root se tiver ciclo de vida proprio.
 
 ---
 
-## 3. Explicacao detalhada do ponto 4: Aggregates definidos
+## 7. Aggregates do projeto explicados
 
-O README diz:
+### AuthorizationRequest + RequestedItem
 
-```text
-No recorte implementado, os principais aggregates sao:
-
-- AuthorizationRequest, contendo seus RequestedItem.
-- HospitalBill, contendo seus BillItem.
-- BillItem, concentrando as Glosa aplicadas ao item faturado.
-- Glosa, controlando seu AdministrativeAppeal.
-- Beneficiary, Plan e ProcedureCatalogItem aparecem como aggregates simples de referencia do dominio.
-```
-
-Abaixo esta a explicacao de cada item.
-
-### 3.1 AuthorizationRequest contendo RequestedItem
-
-`AuthorizationRequest` representa uma solicitacao de autorizacao de procedimento.
-
-Ela contem seus `RequestedItem`, que representam os itens solicitados, como materiais, medicamentos ou itens de procedimento.
-
-Estrutura conceitual:
+Estrutura:
 
 ```text
 AuthorizationRequest
@@ -355,37 +326,22 @@ AuthorizationRequest
   RequestedItem
 ```
 
-Por que isso e um aggregate?
+`AuthorizationRequest` representa a solicitacao de autorizacao.
 
-Porque as regras da autorizacao dependem dos itens:
+`RequestedItem` representa cada item solicitado.
 
-- uma autorizacao precisa ter pelo menos um item;
-- a aprovacao integral aprova todos os itens;
-- a aprovacao parcial valida os itens e suas quantidades;
-- a negativa nega todos os itens;
-- a urgencia/emergencia aprova os itens e marca auditoria posterior.
+Regras protegidas por `AuthorizationRequest`:
 
-Por isso, `RequestedItem` nao deveria ser manipulado livremente por fora. O caminho correto e passar pela raiz `AuthorizationRequest`.
+- autorizacao precisa ter pelo menos um item;
+- so autorizacao pendente recebe decisao;
+- aprovacao integral aprova todos os itens;
+- aprovacao parcial valida item e quantidade;
+- negativa precisa de justificativa;
+- urgencia/emergencia aprova como excecao e marca auditoria posterior.
 
-Exemplos de metodos da raiz:
+### HospitalBill + BillItem
 
-```text
-ApproveFully()
-ApprovePartially(...)
-Deny(...)
-RegisterDocumentPending(...)
-SetAsEmergencyException()
-```
-
-Esses metodos protegem o estado do conjunto.
-
-### 3.2 HospitalBill contendo BillItem
-
-`HospitalBill` representa uma conta hospitalar.
-
-Ela contem itens faturados, os `BillItem`.
-
-Estrutura conceitual:
+Estrutura:
 
 ```text
 HospitalBill
@@ -393,26 +349,20 @@ HospitalBill
   BillItem
 ```
 
-Por que isso e um aggregate?
+`HospitalBill` representa a conta hospitalar.
 
-Porque uma conta hospitalar nao e apenas um numero solto. Ela agrupa itens que foram cobrados para um beneficiario e um estabelecimento executante.
+`BillItem` representa cada item cobrado.
 
-No codigo atual, `HospitalBill` protege regras como:
+Regras atuais:
 
-- id da conta nao pode ser vazio;
-- id do beneficiario nao pode ser vazio;
-- estabelecimento executante nao pode ser vazio;
+- conta precisa ter id valido;
+- beneficiario precisa ter id valido;
+- estabelecimento nao pode ser vazio;
 - item adicionado nao pode ser nulo.
 
-No modelo atual, `HospitalBill` e uma raiz natural para salvar e carregar uma conta inteira.
+### BillItem + Glosa
 
-### 3.3 BillItem concentrando Glosa
-
-`BillItem` representa um item faturado dentro de uma conta hospitalar.
-
-Ele tambem concentra as `Glosa` aplicadas ao item.
-
-Estrutura conceitual:
+Estrutura:
 
 ```text
 BillItem
@@ -420,196 +370,174 @@ BillItem
   Glosa
 ```
 
-O que e uma glosa?
+Glosa e uma negativa, desconto ou contestacao sobre um item faturado.
 
-Glosa e uma negativa, desconto ou contestacao aplicada sobre um item faturado. Em uma operadora de saude, uma glosa pode acontecer quando a operadora entende que aquele item nao deveria ser pago, foi cobrado incorretamente, nao possui documentacao suficiente ou nao esta conforme a regra contratual.
+Exemplo:
 
-Por que `BillItem` concentra glosas?
+> O hospital cobrou um item, mas a operadora entende que ele nao deve ser pago por falta de documento, regra contratual ou auditoria.
 
-Porque a glosa precisa estar ligada ao item cobrado. A regra nao e "glosar a conta inteira" necessariamente; muitas vezes a auditoria glosa um item especifico.
-
-No codigo:
+`BillItem` cria glosas por estes metodos:
 
 ```text
 ApplyGlosa(...)
 ApplyClawbackAuditGlosa(...)
 ```
 
-Esses metodos criam uma `Glosa` ligada ao `BillItem`.
+### Glosa + AdministrativeAppeal
 
-Observacao de modelagem:
-
-Em DDD mais estrito, se `BillItem` so e salvo e carregado junto com `HospitalBill`, ele pode ser visto como uma entity interna do aggregate `HospitalBill`. Neste README, ele aparece como aggregate porque tambem concentra uma pequena fronteira de regra sobre suas glosas. Se futuramente `BillItem` ganhar repository proprio ou ciclo de vida independente, ele ficaria mais claramente como Aggregate Root.
-
-### 3.4 Glosa controlando AdministrativeAppeal
-
-`Glosa` representa a glosa aplicada.
-
-`AdministrativeAppeal` representa o recurso administrativo contra essa glosa.
-
-Estrutura conceitual:
+Estrutura:
 
 ```text
 Glosa
   AdministrativeAppeal
 ```
 
-Por que isso e um aggregate?
+`AdministrativeAppeal` e o recurso contra uma glosa.
 
-Porque existe uma regra importante:
+Regra principal:
+
+- uma glosa so pode ter um recurso administrativo ativo.
+
+Por isso o recurso e criado por:
 
 ```text
-uma glosa so pode ter um recurso administrativo ativo
+Glosa.FileAppeal(...)
 ```
 
-Essa regra esta em `Glosa.FileAppeal(...)`.
+E nao diretamente por fora.
 
-Ou seja, a `Glosa` controla se um recurso pode ou nao ser criado. O recurso nao deveria ser aberto por fora sem perguntar para a glosa, porque isso poderia quebrar a regra de "apenas um recurso por glosa".
+### Beneficiary, Plan e ProcedureCatalogItem
 
-O `AdministrativeAppeal` tambem possui regras:
+Esses sao aggregates simples.
 
-- precisa ter pelo menos uma evidencia;
-- so recurso em analise pode ser processado;
-- pode terminar como glosa mantida;
-- pode terminar como glosa revertida.
+`Beneficiary` cuida de:
 
-### 3.5 Beneficiary, Plan e ProcedureCatalogItem como aggregates simples de referencia
+- nome;
+- data de nascimento;
+- plano vinculado;
+- status ativo/inativo;
+- calculo de idade.
 
-Esses objetos aparecem como aggregates simples porque possuem identidade e regras proprias, mas no recorte atual nao possuem colecoes internas complexas.
+`Plan` cuida de:
 
-#### Beneficiary
+- numero do plano;
+- tipo do plano;
+- coparticipacao;
+- carencia por tipo de procedimento.
 
-Representa o beneficiario.
+`ProcedureCatalogItem` cuida de:
 
-Regras atuais:
-
-- id nao pode ser vazio;
-- nome nao pode ser vazio;
-- data de nascimento nao pode ser futura;
-- plano vinculado nao pode ser vazio;
-- pode calcular idade;
-- pode trocar plano;
-- pode ser ativado ou suspenso.
-
-#### Plan
-
-Representa o plano contratado.
-
-Regras atuais:
-
-- id nao pode ser vazio;
-- numero do plano nao pode ser vazio;
-- coparticipacao precisa estar entre 0 e 100;
-- permite definir carencia por tipo de procedimento;
-- permite verificar se a carencia foi cumprida.
-
-#### ProcedureCatalogItem
-
-Representa um item do catalogo de procedimentos.
-
-Regras atuais:
-
-- codigo nao pode ser nulo;
-- descricao nao pode ser vazia;
-- idade minima nao pode ser maior que idade maxima;
-- permite validar se uma idade e permitida para o procedimento.
-
-Eles sao "de referencia" porque a autorizacao usa dados deles para decidir elegibilidade, mas nao controla o ciclo de vida deles.
+- codigo do procedimento;
+- descricao;
+- tipo;
+- idade minima e maxima.
 
 ---
 
-## 4. Explicacao detalhada do ponto 7: Factories, Services e Repositories
+## 8. O que e factory
 
-O README diz:
+Factory e uma classe que cria um objeto quando a criacao tem regra ou muitos detalhes.
+
+No projeto:
 
 ```text
-- Factory: AuthorizationRequestFactory, no modulo de Autorizacoes, cria uma solicitacao completa com value objects e itens solicitados.
-- Domain Service: EligibilityService, no modulo de Autorizacoes, valida elegibilidade cruzando beneficiario, plano e procedimento.
-- Application Service: AuthorizationService, no projeto Application, coordena os casos de uso e chama o dominio sem concentrar regra de negocio.
-- Repositories: IAuthorizationRepository e IHospitalBillRepository sao contratos do dominio. AuthorizationRepository, no projeto Infra, e a implementacao em memoria usada na demonstracao.
+Domain/Factories/Autorizacoes/AuthorizationRequestFactory.cs
 ```
 
-Abaixo esta a explicacao de cada papel.
+Ela cria uma `AuthorizationRequest`.
 
-### 4.1 Factory: AuthorizationRequestFactory
+Ela recebe:
 
-Uma factory existe quando criar um objeto exige mais do que apenas chamar `new`.
-
-No projeto, `AuthorizationRequestFactory` cria uma autorizacao com:
-
-- novo id;
 - beneficiario;
 - numero do plano;
 - codigo do procedimento;
-- CID ou justificativa clinica;
+- CID;
 - profissional solicitante;
-- estabelecimento executante;
-- data prevista;
-- itens solicitados;
-- informacao de urgencia/emergencia.
+- estabelecimento;
+- data;
+- itens;
+- indicador de urgencia/emergencia.
 
-A factory tambem aplica uma decisao inicial:
+Ela tambem aplica a regra:
 
 ```text
-se for urgencia/emergencia, a solicitacao e aprovada como excecao e marcada para auditoria posterior
+se for urgencia/emergencia, aprova como excecao e marca auditoria posterior
 ```
 
-Isso deixa a criacao de `AuthorizationRequest` padronizada.
+Sem factory, cada parte do sistema poderia criar uma autorizacao de um jeito diferente.
 
-Sem factory, cada lugar do sistema poderia criar uma autorizacao de um jeito diferente, esquecendo algum campo ou alguma regra inicial.
+---
 
-### 4.2 Domain Service: EligibilityService
+## 9. O que e domain service
 
-`EligibilityService` e um Domain Service porque a regra de elegibilidade depende de mais de um objeto de dominio.
+Domain Service e uma classe de regra de negocio que nao pertence bem a uma unica entity.
 
-Ele precisa olhar para:
+No projeto:
 
-- beneficiario;
-- plano;
-- procedimento;
-- data da solicitacao.
+```text
+Domain/Services/Autorizacoes/EligibilityService.cs
+```
 
-As validacoes feitas por ele incluem:
+`EligibilityService` valida elegibilidade.
 
-- beneficiario precisa estar ativo;
-- beneficiario precisa pertencer ao plano informado;
-- carencia do plano precisa estar cumprida;
-- idade do beneficiario precisa ser permitida para o procedimento.
+Ele precisa olhar ao mesmo tempo para:
 
-Essa regra nao pertence perfeitamente a `Beneficiary`, nem somente a `Plan`, nem somente a `ProcedureCatalogItem`.
+- `Beneficiary`
+- `Plan`
+- `ProcedureCatalogItem`
+- data da solicitacao
 
-Por isso ela fica em um servico de dominio.
+Ele valida:
 
-### 4.3 Application Service: AuthorizationService
+- beneficiario ativo;
+- beneficiario pertence ao plano;
+- carencia cumprida;
+- idade permitida para o procedimento.
 
-`AuthorizationService` fica no projeto `Application`.
+Essa regra cruza varios objetos. Por isso fica em um domain service.
 
-Ele nao deveria decidir as regras de negocio. O papel dele e coordenar a chamada dos casos de uso.
+---
 
-No estado atual, ele funciona como uma fachada para operacoes de autorizacao:
+## 10. O que e repository
 
-- solicitar autorizacao;
-- aprovar autorizacao;
-- aprovar parcialmente;
-- negar;
-- registrar pendencia documental;
-- consultar status.
+Repository e uma porta para buscar e salvar aggregates.
 
-Ele delega a execucao para classes de use case em:
+No dominio ficam os contratos:
+
+```text
+Domain/Repositories/Autorizacoes/IAuthorizationRepository.cs
+Domain/Repositories/Faturamento/IHospitalBillRepository.cs
+```
+
+Eles dizem o que o dominio precisa:
+
+- buscar por id;
+- adicionar;
+- atualizar.
+
+Eles nao dizem como salvar.
+
+A implementacao real fica em `Infra`:
+
+```text
+Infra/Repositories/AuthorizationRepository.cs
+```
+
+Hoje ela salva em memoria com `ConcurrentDictionary`.
+
+No futuro poderia salvar em banco de dados, e o dominio nao precisaria mudar.
+
+---
+
+## 11. O que e use case
+
+Use Case e uma acao que o sistema executa.
+
+No projeto, os use cases ficam em:
 
 ```text
 Application/UseCases/Autorizacoes/
 ```
-
-Isso separa melhor:
-
-- caso de uso: fluxo da aplicacao;
-- dominio: regra de negocio;
-- infraestrutura: armazenamento.
-
-### 4.4 Use Cases em Application/UseCases
-
-Os use cases sao as acoes especificas da aplicacao.
 
 Exemplos:
 
@@ -622,144 +550,121 @@ RegisterDocumentPendingUseCase
 GetAuthorizationStatusUseCase
 ```
 
-Eles fazem tarefas como:
+O use case coordena o fluxo:
 
-- receber DTO;
-- converter dados simples para objetos do dominio;
-- buscar aggregate no repository;
-- chamar metodo do aggregate;
-- salvar alteracao no repository;
-- montar DTO de resposta.
+1. recebe dados;
+2. busca aggregate no repository;
+3. chama metodo do dominio;
+4. salva alteracao;
+5. devolve resposta.
 
-O ponto importante: o use case orquestra, mas quem decide se pode aprovar, negar ou mudar status e o dominio.
+O use case nao deve concentrar regra de negocio.
 
-### 4.5 Repositories: IAuthorizationRepository e IHospitalBillRepository
-
-Repository e o mecanismo de persistencia visto pelo dominio.
-
-O dominio declara contratos:
-
-```text
-IAuthorizationRepository
-IHospitalBillRepository
-```
-
-Esses contratos dizem quais operacoes sao necessarias:
-
-- buscar por id;
-- adicionar;
-- atualizar.
-
-Mas eles nao dizem como isso sera salvo.
-
-Essa separacao e importante porque o dominio nao deve depender de banco de dados especifico.
-
-Hoje:
-
-```text
-AuthorizationRepository
-```
-
-salva em memoria.
-
-Amanha, poderia existir:
-
-```text
-SqlAuthorizationRepository
-MongoAuthorizationRepository
-ApiAuthorizationRepository
-```
-
-E o dominio continuaria praticamente igual.
+Quem decide se pode aprovar, negar ou mudar status e o dominio.
 
 ---
 
-## 5. Como as camadas conversam
+## 12. O que e application service
 
-Fluxo simplificado de uma solicitacao de autorizacao:
+Application Service e uma fachada da camada de aplicacao.
+
+No projeto:
+
+```text
+Application/Services/AuthorizationService.cs
+```
+
+Ele existe para oferecer uma API simples para a UI e os testes.
+
+Ele delega o trabalho para os use cases.
+
+Exemplo:
+
+```text
+AuthorizationService.ApproveAuthorizationAsync(...)
+  chama ApproveAuthorizationUseCase
+    busca AuthorizationRequest
+    chama AuthorizationRequest.ApproveFully()
+    salva no repository
+```
+
+---
+
+## 13. Como as camadas conversam
+
+Fluxo de criar autorizacao:
 
 ```text
 UI
-  chama Application Service
+  chama AuthorizationService
 
-Application Service
+AuthorizationService
   chama RequestAuthorizationUseCase
 
 RequestAuthorizationUseCase
   recebe AuthorizationRequestDto
-  cria Value Objects
+  cria value objects
   cria RequestedItem
   chama AuthorizationRequestFactory
-  salva usando IAuthorizationRepository
+  salva pelo IAuthorizationRepository
 
-AuthorizationRequestFactory / AuthorizationRequest
-  aplicam regras do dominio
+AuthorizationRequest
+  protege as regras de negocio
 
 Infra
-  implementa AuthorizationRepository em memoria
+  salva em memoria com AuthorizationRepository
 ```
 
-Fluxo simplificado de aprovacao:
+Fluxo de aprovar autorizacao:
 
 ```text
 UI
   chama AuthorizationService.ApproveAuthorizationAsync
 
-AuthorizationService
-  delega para ApproveAuthorizationUseCase
-
 ApproveAuthorizationUseCase
-  busca AuthorizationRequest no repository
+  busca AuthorizationRequest
   chama AuthorizationRequest.ApproveFully()
-  salva alteracao no repository
+  salva no repository
 
 AuthorizationRequest
   valida se esta pendente
-  aprova todos os RequestedItem
+  aprova todos os itens
   muda status para AprovadaIntegralmente
 ```
 
 ---
 
-## 6. Regra pratica para diferenciar os conceitos
+## 14. Tabela rapida
 
-Use esta regra mental:
-
-| Conceito | Pergunta que responde | Exemplo no projeto |
-|----------|------------------------|--------------------|
-| Entity | Quem e este objeto especifico? | `AuthorizationRequest`, `Beneficiary` |
-| Value Object | Que valor valido isto representa? | `PlanNumber`, `ProcedureCode` |
-| Aggregate | Que grupo precisa ficar consistente junto? | `AuthorizationRequest` + `RequestedItem` |
-| Aggregate Root | Por onde altero esse grupo? | `AuthorizationRequest` |
-| Factory | Como crio esse objeto corretamente? | `AuthorizationRequestFactory` |
-| Domain Service | Que regra de negocio cruza mais de um objeto? | `EligibilityService` |
-| Use Case | Que acao a aplicacao executa? | `RequestAuthorizationUseCase` |
-| Application Service | Quem coordena a entrada da aplicacao? | `AuthorizationService` |
-| Repository | Como busco e salvo aggregates? | `IAuthorizationRepository` |
-| Infrastructure | Qual detalhe tecnico executa persistencia? | `AuthorizationRepository` |
+| Termo | Explicacao simples | Exemplo |
+|-------|--------------------|---------|
+| Domain | Onde ficam as regras de negocio | `Domain/` |
+| Entity | Objeto com identidade | `AuthorizationRequest` |
+| Value Object | Objeto definido pelo valor | `PlanNumber` |
+| Enum | Lista fechada de opcoes | `AuthorizationStatus` |
+| Aggregate | Grupo que precisa ficar consistente junto | `AuthorizationRequest` + `RequestedItem` |
+| Aggregate Root | Porta de entrada do aggregate | `AuthorizationRequest` |
+| Factory | Cria objeto complexo corretamente | `AuthorizationRequestFactory` |
+| Domain Service | Regra que cruza varios objetos | `EligibilityService` |
+| Use Case | Acao do sistema | `RequestAuthorizationUseCase` |
+| Application Service | Fachada da aplicacao | `AuthorizationService` |
+| Repository | Busca e salva aggregates | `IAuthorizationRepository` |
+| Infra | Implementa detalhe tecnico | `AuthorizationRepository` |
 
 ---
 
-## 7. Resumo curto
+## 15. Resumo final
 
-Aggregate e uma fronteira de consistencia.
+O ponto mais importante do projeto e este:
 
-Aggregate Root e a entidade principal que protege essa fronteira.
+```text
+AuthorizationRequest e a principal aggregate root.
+```
 
-Entity tem identidade.
+Ela centraliza o fluxo de autorizacao.
 
-Value Object tem valor.
+Isso evita regra espalhada pelo sistema.
 
-Factory cria objetos complexos de forma padronizada.
+Quando alguem quer aprovar, negar ou marcar pendencia, deve passar por `AuthorizationRequest`.
 
-Domain Service guarda regra de negocio que cruza mais de um objeto.
-
-Application Service coordena operacoes da aplicacao.
-
-Use Case representa uma acao concreta do sistema.
-
-Repository abstrai busca e persistencia.
-
-Infrastructure implementa detalhes tecnicos.
-
-No projeto, a principal decisao foi deixar `AuthorizationRequest` como raiz do fluxo de autorizacao, porque ela controla status, itens, aprovacao, negativa, pendencia e urgencia/emergencia sem espalhar essas regras fora do dominio.
+Assim o dominio continua consistente.
