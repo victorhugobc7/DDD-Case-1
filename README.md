@@ -134,7 +134,7 @@ As principais regras centralizadas no domínio foram:
 - Separar `Plan` como produto/regras do plano, deixando `Contrato` como evolução futura.
 - Representar `Glosa` com rastreabilidade e possibilidade de recurso, em vez de tratá-la como simples desconto.
 
-Validação esperada com SDK .NET compatível com `net10.0`:
+Validação esperada com SDK .NET compatível com `net10.  0`:
 
 ```bash
 dotnet build HealthInsurance.slnx
