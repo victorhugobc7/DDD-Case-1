@@ -379,6 +379,11 @@ Processo de Faturamento v2.0:
 | **Glosa** | Sem auditoria | Resultado de Auditoria formal | Compliance |
 | **Conformidade** | Nenhuma | ANS + TISS + CRM + CID-10 | Exigência Legal |
 
+
+## Link do canvas do excalidraw utilizado no projeto
+
+https://excalidraw.com/#json=CAfUBVa2wkKpQ_3C9_ASO,5qYLOszq5q4c2iNDW4NHMA
+
 ---
 
 ## Referencias e Padrões Utilizados
