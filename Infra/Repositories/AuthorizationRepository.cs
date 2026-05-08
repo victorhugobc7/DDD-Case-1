@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
-using Domain.Entities;
-using Domain.Interfaces;
+using Domain.Modules.Autorizacoes;
 
 namespace Infra.Repositories;
 
@@ -10,7 +9,7 @@ public class AuthorizationRepository : IAuthorizationRepository
 {
     private readonly ConcurrentDictionary<Guid, AuthorizationRequest> _database = new();
 
-    public Task<AuthorizationRequest> GetByIdAsync(Guid id)
+    public Task<AuthorizationRequest?> GetByIdAsync(Guid id)
     {
         _database.TryGetValue(id, out var authorizationRequest);
         return Task.FromResult(authorizationRequest);
