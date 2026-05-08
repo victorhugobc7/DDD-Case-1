@@ -1,4 +1,5 @@
 using System;
+using Domain.Enums.Beneficiarios;
 
 namespace Domain.Aggregates.Beneficiarios;
 
