@@ -1,11 +1,19 @@
 using Application.DTOs;
 using Application.Services;
-using Domain.Modules.Auditoria;
-using Domain.Modules.Autorizacoes;
-using Domain.Modules.Beneficiarios;
-using Domain.Modules.Planos;
-using Domain.Modules.Procedimentos;
-using Domain.Modules.RedeCredenciada;
+using Domain.Aggregates.Autorizacoes;
+using Domain.Aggregates.Beneficiarios;
+using Domain.Aggregates.Planos;
+using Domain.Aggregates.Procedimentos;
+using Domain.Enums.Auditoria;
+using Domain.Enums.Autorizacoes;
+using Domain.Enums.Beneficiarios;
+using Domain.Enums.Planos;
+using Domain.Enums.Procedimentos;
+using Domain.Factories.Autorizacoes;
+using Domain.Services.Autorizacoes;
+using Domain.ValueObjects.Planos;
+using Domain.ValueObjects.Procedimentos;
+using Domain.ValueObjects.RedeCredenciada;
 using Infra.Repositories;
 
 namespace Tests;

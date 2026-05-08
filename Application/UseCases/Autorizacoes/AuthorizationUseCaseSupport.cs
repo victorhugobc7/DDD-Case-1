@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Application.DTOs;
-using Domain.Modules.Autorizacoes;
+using Domain.Aggregates.Autorizacoes;
+using Domain.Repositories.Autorizacoes;
 
 namespace Application.UseCases.Autorizacoes;
 

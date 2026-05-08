@@ -4,8 +4,8 @@ using System.Threading.Tasks;
 using Application.DTOs;
 using Application.Interfaces;
 using Application.UseCases.Autorizacoes;
-using Domain.Modules.Auditoria;
-using Domain.Modules.Autorizacoes;
+using Domain.Enums.Auditoria;
+using Domain.Repositories.Autorizacoes;
 
 namespace Application.Services;
 

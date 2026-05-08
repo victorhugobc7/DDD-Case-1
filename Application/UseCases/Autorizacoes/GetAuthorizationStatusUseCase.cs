@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Application.DTOs;
-using Domain.Modules.Autorizacoes;
+using Domain.Repositories.Autorizacoes;
 
 namespace Application.UseCases.Autorizacoes;
 

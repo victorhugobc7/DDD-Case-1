@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Domain.Modules.Autorizacoes;
+using Domain.Repositories.Autorizacoes;
 
 namespace Application.UseCases.Autorizacoes;
 

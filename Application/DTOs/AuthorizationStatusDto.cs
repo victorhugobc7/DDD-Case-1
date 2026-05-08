@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Domain.Modules.Autorizacoes;
+using Domain.Enums.Autorizacoes;
 
 namespace Application.DTOs;
 

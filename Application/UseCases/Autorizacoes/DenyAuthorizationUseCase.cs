@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using Domain.Modules.Auditoria;
-using Domain.Modules.Autorizacoes;
+using Domain.Enums.Auditoria;
+using Domain.Repositories.Autorizacoes;
 
 namespace Application.UseCases.Autorizacoes;
 

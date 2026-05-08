@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Application.DTOs;
-using Domain.Modules.Autorizacoes;
-using Domain.Modules.Planos;
-using Domain.Modules.Procedimentos;
-using Domain.Modules.RedeCredenciada;
+using Domain.Aggregates.Autorizacoes;
+using Domain.Factories.Autorizacoes;
+using Domain.Repositories.Autorizacoes;
+using Domain.ValueObjects.Planos;
+using Domain.ValueObjects.Procedimentos;
+using Domain.ValueObjects.RedeCredenciada;
 
 namespace Application.UseCases.Autorizacoes;
 
