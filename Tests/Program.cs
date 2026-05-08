@@ -120,13 +120,13 @@ public static class Program
     {
         var request = AuthorizationRequestFactory.Create(
             Guid.NewGuid(),
-            "123456",
-            "8888",
-            "S72.0",
-            "CRM-54321",
+            new PlanNumber("123456"),
+            new ProcedureCode("8888"),
+            new CidCode("S72.0"),
+            new ProfessionalRegistry("CRM-54321"),
             "Pronto Atendimento BemAli",
             DateTime.Today,
-            new List<string> { "Imobilizador" },
+            new List<RequestedItem> { new(Guid.NewGuid(), "Imobilizador", 1) },
             true);
 
         AssertEqual(AuthorizationStatus.AprovadaIntegralmente, request.Status);

@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Collections.Generic;
 using Domain.Modules.Planos;
 using Domain.Modules.Procedimentos;
@@ -10,38 +9,26 @@ namespace Domain.Modules.Autorizacoes;
 public static class AuthorizationRequestFactory
 {
     public static AuthorizationRequest Create(
-        Guid beneficiaryId, 
-        string planNumber, 
-        string procedureCode, 
-        string clinicalJustification, 
-        string requestingProfessional, 
-        string executingEstablishment, 
-        DateTime expectedDate, 
-        List<string> materialsAndMedicines, 
+        Guid beneficiaryId,
+        PlanNumber planNumber,
+        ProcedureCode procedureCode,
+        CidCode clinicalJustification,
+        ProfessionalRegistry requestingProfessional,
+        string executingEstablishment,
+        DateTime expectedDate,
+        List<RequestedItem> items,
         bool isUrgentOrEmergency)
     {
-        if (materialsAndMedicines == null || !materialsAndMedicines.Any())
-            throw new ArgumentException("A solicitação deve conter pelo menos um material, medicamento ou item solicitado.", nameof(materialsAndMedicines));
-
-        var planNumberVo = new PlanNumber(planNumber);
-        var procedureCodeVo = new ProcedureCode(procedureCode);
-        var cidCodeVo = new CidCode(clinicalJustification);
-        var professionalRegistryVo = new ProfessionalRegistry(requestingProfessional);
-
-        var requestedItems = materialsAndMedicines
-            .Select(m => new RequestedItem(Guid.NewGuid(), m, 1))
-            .ToList();
-
         var request = new AuthorizationRequest(
             Guid.NewGuid(),
             beneficiaryId,
-            planNumberVo,
-            procedureCodeVo,
-            cidCodeVo,
-            professionalRegistryVo,
+            planNumber,
+            procedureCode,
+            clinicalJustification,
+            requestingProfessional,
             executingEstablishment,
             expectedDate,
-            requestedItems,
+            items,
             isUrgentOrEmergency
         );
 
