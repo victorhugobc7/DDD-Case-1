@@ -61,6 +61,11 @@ public static class Program
         yield return ("elegibilidade barra beneficiário inativo", TestEligibilityInactiveBeneficiary);
         yield return ("elegibilidade permite cenário válido", TestEligibilityAllowed);
         yield return ("application coordena factory e repository", TestApplicationServiceFlow);
+        yield return ("faturamento cria conta para autorização aprovada integralmente", TestBillingFullApprovalCreatesHospitalBill);
+        yield return ("faturamento parcial usa somente itens aprovados", TestBillingPartialApprovalUsesOnlyApprovedItems);
+        yield return ("faturamento rejeita autorização pendente ou negada", TestBillingRejectsPendingOrDeniedAuthorization);
+        yield return ("faturamento exige valor unitário válido por item aprovado", TestBillingRequiresUnitValueForApprovedItems);
+        yield return ("repositories persistem dados em SQLite", TestRepositoriesPersistInSqliteDatabase);
     }
 
     private static Task TestAuthorizationRequiresItems()
@@ -208,7 +213,7 @@ public static class Program
 
     private static async Task TestApplicationServiceFlow()
     {
-        var repository = new AuthorizationRepository();
+        var repository = new AuthorizationRepository(CreateTestDatabasePath());
         var service = new AuthorizationService(repository);
         var dto = new AuthorizationRequestDto
         {
@@ -238,6 +243,195 @@ public static class Program
 
         AssertEqual(AuthorizationStatus.Negada, denied.Status);
         AssertTrue(denied.DenialReason?.Contains("Laudo médico não anexado.") == true, "A negativa deveria retornar detalhes.");
+    }
+
+    private static async Task TestBillingFullApprovalCreatesHospitalBill()
+    {
+        var (authorizationService, billingService) = CreateBillingServices();
+        var dto = CreateAuthorizationDto();
+
+        var authorizationId = await authorizationService.RequestAuthorizationAsync(dto);
+        await authorizationService.ApproveAuthorizationAsync(authorizationId);
+
+        var status = await authorizationService.GetAuthorizationStatusAsync(authorizationId);
+        var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+        {
+            AuthorizationId = authorizationId,
+            UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => 25m)
+        });
+
+        var bill = await billingService.GetHospitalBillAsync(billId);
+
+        AssertEqual(dto.BeneficiaryId, bill.BeneficiaryId);
+        AssertEqual(dto.ExecutingEstablishment, bill.ExecutingEstablishment);
+        AssertEqual(2, bill.Items.Count);
+        AssertTrue(bill.Items.All(item => item.ApprovedAuthorizationId == authorizationId), "Todos os itens deveriam apontar para a autorização aprovada.");
+        AssertTrue(bill.Items.All(item => item.Quantity == 1), "Todos os itens deveriam faturar a quantidade aprovada.");
+        AssertEqual(50m, bill.TotalValue);
+    }
+
+    private static async Task TestBillingPartialApprovalUsesOnlyApprovedItems()
+    {
+        var (authorizationService, billingService) = CreateBillingServices();
+        var authorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+
+        var pending = await authorizationService.GetAuthorizationStatusAsync(authorizationId);
+        var approvedItem = pending.Items.First();
+
+        await authorizationService.ApproveAuthorizationPartiallyAsync(
+            authorizationId,
+            new Dictionary<Guid, int> { [approvedItem.Id] = 1 });
+
+        var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+        {
+            AuthorizationId = authorizationId,
+            UnitValuesByItemId = new Dictionary<Guid, decimal> { [approvedItem.Id] = 12.50m }
+        });
+
+        var bill = await billingService.GetHospitalBillAsync(billId);
+        var billItem = bill.Items.Single();
+
+        AssertEqual(1, bill.Items.Count);
+        AssertEqual(authorizationId, billItem.ApprovedAuthorizationId);
+        AssertEqual(approvedItem.Description, billItem.Description);
+        AssertEqual(1, billItem.Quantity);
+        AssertEqual(12.50m, bill.TotalValue);
+    }
+
+    private static async Task TestBillingRejectsPendingOrDeniedAuthorization()
+    {
+        var (authorizationService, billingService) = CreateBillingServices();
+
+        var pendingAuthorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+        var pending = await authorizationService.GetAuthorizationStatusAsync(pendingAuthorizationId);
+
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+            {
+                AuthorizationId = pendingAuthorizationId,
+                UnitValuesByItemId = pending.Items.ToDictionary(item => item.Id, item => 10m)
+            }));
+
+        var deniedAuthorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+        await authorizationService.DenyAuthorizationAsync(
+            deniedAuthorizationId,
+            GlosaReason.FaltaDeDocumentacao,
+            "Laudo médico não anexado.");
+        var denied = await authorizationService.GetAuthorizationStatusAsync(deniedAuthorizationId);
+
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+            {
+                AuthorizationId = deniedAuthorizationId,
+                UnitValuesByItemId = denied.Items.ToDictionary(item => item.Id, item => 10m)
+            }));
+    }
+
+    private static async Task TestBillingRequiresUnitValueForApprovedItems()
+    {
+        var (authorizationService, billingService) = CreateBillingServices();
+
+        var authorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+        await authorizationService.ApproveAuthorizationAsync(authorizationId);
+        var status = await authorizationService.GetAuthorizationStatusAsync(authorizationId);
+
+        await AssertThrowsAsync<ArgumentException>(() =>
+            billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+            {
+                AuthorizationId = authorizationId,
+                UnitValuesByItemId = new Dictionary<Guid, decimal>()
+            }));
+
+        await AssertThrowsAsync<ArgumentException>(() =>
+            billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+            {
+                AuthorizationId = authorizationId,
+                UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => -1m)
+            }));
+    }
+
+    private static async Task TestRepositoriesPersistInSqliteDatabase()
+    {
+        var databasePath = CreateTestDatabasePath();
+
+        try
+        {
+            var authorizationRepository = new AuthorizationRepository(databasePath);
+            var hospitalBillRepository = new HospitalBillRepository(databasePath);
+            var authorizationService = new AuthorizationService(authorizationRepository);
+            var billingService = new BillingService(authorizationRepository, hospitalBillRepository);
+            var dto = CreateAuthorizationDto();
+
+            var authorizationId = await authorizationService.RequestAuthorizationAsync(dto);
+            await authorizationService.ApproveAuthorizationAsync(authorizationId);
+            var status = await authorizationService.GetAuthorizationStatusAsync(authorizationId);
+
+            var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+            {
+                AuthorizationId = authorizationId,
+                UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => 25m)
+            });
+
+            var reloadedAuthorizationRepository = new AuthorizationRepository(databasePath);
+            var reloadedHospitalBillRepository = new HospitalBillRepository(databasePath);
+
+            var reloadedAuthorization = await reloadedAuthorizationRepository.GetByIdAsync(authorizationId);
+            var reloadedBill = await reloadedHospitalBillRepository.GetByIdAsync(billId);
+
+            AssertTrue(reloadedAuthorization != null, "A autorização deveria ser recarregada do SQLite.");
+            AssertTrue(reloadedBill != null, "A conta hospitalar deveria ser recarregada do SQLite.");
+            AssertEqual(AuthorizationStatus.AprovadaIntegralmente, reloadedAuthorization!.Status);
+            AssertEqual(2, reloadedAuthorization.Items.Count);
+            AssertTrue(reloadedAuthorization.Items.All(item => item.ApprovedQuantity == item.RequestedQuantity), "As quantidades aprovadas deveriam persistir.");
+            AssertEqual(dto.BeneficiaryId, reloadedBill!.BeneficiaryId);
+            AssertEqual(2, reloadedBill.Items.Count);
+            AssertEqual(50m, reloadedBill.Items.Sum(item => item.TotalValue));
+        }
+        finally
+        {
+            DeleteDatabaseFiles(databasePath);
+        }
+    }
+
+    private static (AuthorizationService AuthorizationService, BillingService BillingService) CreateBillingServices()
+    {
+        var databasePath = CreateTestDatabasePath();
+        var authorizationRepository = new AuthorizationRepository(databasePath);
+        var hospitalBillRepository = new HospitalBillRepository(databasePath);
+
+        return (
+            new AuthorizationService(authorizationRepository),
+            new BillingService(authorizationRepository, hospitalBillRepository));
+    }
+
+    private static AuthorizationRequestDto CreateAuthorizationDto()
+    {
+        return new AuthorizationRequestDto
+        {
+            BeneficiaryId = Guid.NewGuid(),
+            PlanNumber = "123456",
+            ProcedureCode = "9999",
+            ClinicalJustification = "M54.5",
+            RequestingProfessional = "CRM-12345",
+            ExecutingEstablishment = "Hospital BemAli",
+            ExpectedDate = DateTime.Today.AddDays(1),
+            MaterialsAndMedicines = new List<string> { "Soro", "Dipirona" },
+            IsUrgentOrEmergency = false
+        };
+    }
+
+    private static string CreateTestDatabasePath()
+    {
+        return Path.Combine(Path.GetTempPath(), $"ddd-case-1-{Guid.NewGuid():N}.db");
+    }
+
+    private static void DeleteDatabaseFiles(string databasePath)
+    {
+        foreach (var path in new[] { databasePath, $"{databasePath}-shm", $"{databasePath}-wal" })
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
     }
 
     private static AuthorizationRequest CreateRequest()
@@ -295,6 +489,25 @@ public static class Program
         try
         {
             action();
+        }
+        catch (TException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Esperava {typeof(TException).Name}, mas recebeu {ex.GetType().Name}.");
+        }
+
+        throw new InvalidOperationException($"Esperava exceção {typeof(TException).Name}.");
+    }
+
+    private static async Task AssertThrowsAsync<TException>(Func<Task> action)
+        where TException : Exception
+    {
+        try
+        {
+            await action();
         }
         catch (TException)
         {

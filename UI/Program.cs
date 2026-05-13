@@ -11,8 +11,10 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        var repository = new AuthorizationRepository();
-        var service = new AuthorizationService(repository);
+        var authorizationRepository = new AuthorizationRepository();
+        var hospitalBillRepository = new HospitalBillRepository();
+        var authorizationService = new AuthorizationService(authorizationRepository);
+        var billingService = new BillingService(authorizationRepository, hospitalBillRepository);
 
         var electiveRequestDto = new AuthorizationRequestDto
         {
@@ -27,17 +29,28 @@ class Program
             IsUrgentOrEmergency = false
         };
 
-        var electiveAuthorizationId = await service.RequestAuthorizationAsync(electiveRequestDto);
-        var pendingStatus = await service.GetAuthorizationStatusAsync(electiveAuthorizationId);
+        var electiveAuthorizationId = await authorizationService.RequestAuthorizationAsync(electiveRequestDto);
+        var pendingStatus = await authorizationService.GetAuthorizationStatusAsync(electiveAuthorizationId);
         Console.WriteLine($"Solicitação criada: {pendingStatus.Id} - Status: {pendingStatus.Status}");
 
         var firstItem = pendingStatus.Items.First();
-        await service.ApproveAuthorizationPartiallyAsync(
+        await authorizationService.ApproveAuthorizationPartiallyAsync(
             electiveAuthorizationId,
             new Dictionary<Guid, int> { [firstItem.Id] = 1 });
 
-        var partialStatus = await service.GetAuthorizationStatusAsync(electiveAuthorizationId);
+        var partialStatus = await authorizationService.GetAuthorizationStatusAsync(electiveAuthorizationId);
         Console.WriteLine($"Após análise: {partialStatus.Status}");
+
+        var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+        {
+            AuthorizationId = electiveAuthorizationId,
+            UnitValuesByItemId = partialStatus.Items
+                .Where(item => item.ApprovedQuantity > 0)
+                .ToDictionary(item => item.Id, item => 25.50m)
+        });
+
+        var bill = await billingService.GetHospitalBillAsync(billId);
+        Console.WriteLine($"Conta hospitalar criada: {bill.Id} - Itens: {bill.Items.Count} - Total: {bill.TotalValue:0.00}");
 
         var emergencyRequestDto = new AuthorizationRequestDto
         {
@@ -52,8 +65,8 @@ class Program
             IsUrgentOrEmergency = true
         };
 
-        var emergencyAuthorizationId = await service.RequestAuthorizationAsync(emergencyRequestDto);
-        var emergencyStatus = await service.GetAuthorizationStatusAsync(emergencyAuthorizationId);
+        var emergencyAuthorizationId = await authorizationService.RequestAuthorizationAsync(emergencyRequestDto);
+        var emergencyStatus = await authorizationService.GetAuthorizationStatusAsync(emergencyAuthorizationId);
         Console.WriteLine($"Urgência: {emergencyStatus.Status} - Auditoria posterior: {emergencyStatus.RequiresPostPaymentAudit}");
     }
 }
