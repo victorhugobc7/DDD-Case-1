@@ -1,11 +1,19 @@
 using Application.DTOs;
 using Application.Services;
-using Domain.Modules.Auditoria;
-using Domain.Modules.Autorizacoes;
-using Domain.Modules.Beneficiarios;
-using Domain.Modules.Planos;
-using Domain.Modules.Procedimentos;
-using Domain.Modules.RedeCredenciada;
+using Domain.Aggregates.Autorizacoes;
+using Domain.Aggregates.Beneficiarios;
+using Domain.Aggregates.Planos;
+using Domain.Aggregates.Procedimentos;
+using Domain.Enums.Auditoria;
+using Domain.Enums.Autorizacoes;
+using Domain.Enums.Beneficiarios;
+using Domain.Enums.Planos;
+using Domain.Enums.Procedimentos;
+using Domain.Factories.Autorizacoes;
+using Domain.Services.Autorizacoes;
+using Domain.ValueObjects.Planos;
+using Domain.ValueObjects.Procedimentos;
+using Domain.ValueObjects.RedeCredenciada;
 using Infra.Repositories;
 
 namespace Tests;
@@ -120,13 +128,13 @@ public static class Program
     {
         var request = AuthorizationRequestFactory.Create(
             Guid.NewGuid(),
-            "123456",
-            "8888",
-            "S72.0",
-            "CRM-54321",
+            new PlanNumber("123456"),
+            new ProcedureCode("8888"),
+            new CidCode("S72.0"),
+            new ProfessionalRegistry("CRM-54321"),
             "Pronto Atendimento BemAli",
             DateTime.Today,
-            new List<string> { "Imobilizador" },
+            new List<RequestedItem> { new(Guid.NewGuid(), "Imobilizador", 1) },
             true);
 
         AssertEqual(AuthorizationStatus.AprovadaIntegralmente, request.Status);

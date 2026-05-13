@@ -1,0 +1,42 @@
+using System;
+
+namespace Domain.Aggregates.Autorizacoes;
+
+public class RequestedItem
+{
+    public Guid Id { get; private set; }
+    public string Description { get; private set; }
+    public int RequestedQuantity { get; private set; }
+    public int ApprovedQuantity { get; private set; }
+
+    public RequestedItem(Guid id, string description, int requestedQuantity)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+            throw new ArgumentException("A descrição não pode ser vazia.", nameof(description));
+        if (requestedQuantity <= 0)
+            throw new ArgumentException("A quantidade solicitada deve ser maior que zero.", nameof(requestedQuantity));
+
+        Id = id;
+        Description = description;
+        RequestedQuantity = requestedQuantity;
+        ApprovedQuantity = 0;
+    }
+
+    public void ApproveFully()
+    {
+        ApprovedQuantity = RequestedQuantity;
+    }
+
+    public void ApprovePartially(int quantity)
+    {
+        if (quantity < 0 || quantity > RequestedQuantity)
+            throw new ArgumentException("A quantidade aprovada inválida.", nameof(quantity));
+
+        ApprovedQuantity = quantity;
+    }
+
+    public void Deny()
+    {
+        ApprovedQuantity = 0;
+    }
+}

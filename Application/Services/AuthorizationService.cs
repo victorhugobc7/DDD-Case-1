@@ -1,99 +1,60 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Application.DTOs;
 using Application.Interfaces;
-using Domain.Modules.Auditoria;
-using Domain.Modules.Autorizacoes;
+using Application.UseCases.Autorizacoes;
+using Domain.Enums.Auditoria;
+using Domain.Repositories.Autorizacoes;
 
 namespace Application.Services;
 
 public class AuthorizationService : IAuthorizationService
 {
-    private readonly IAuthorizationRepository _authorizationRepository;
+    private readonly RequestAuthorizationUseCase _requestAuthorization;
+    private readonly ApproveAuthorizationUseCase _approveAuthorization;
+    private readonly ApproveAuthorizationPartiallyUseCase _approveAuthorizationPartially;
+    private readonly DenyAuthorizationUseCase _denyAuthorization;
+    private readonly RegisterDocumentPendingUseCase _registerDocumentPending;
+    private readonly GetAuthorizationStatusUseCase _getAuthorizationStatus;
 
     public AuthorizationService(IAuthorizationRepository authorizationRepository)
     {
-        _authorizationRepository = authorizationRepository;
+        _requestAuthorization = new RequestAuthorizationUseCase(authorizationRepository);
+        _approveAuthorization = new ApproveAuthorizationUseCase(authorizationRepository);
+        _approveAuthorizationPartially = new ApproveAuthorizationPartiallyUseCase(authorizationRepository);
+        _denyAuthorization = new DenyAuthorizationUseCase(authorizationRepository);
+        _registerDocumentPending = new RegisterDocumentPendingUseCase(authorizationRepository);
+        _getAuthorizationStatus = new GetAuthorizationStatusUseCase(authorizationRepository);
     }
 
     public async Task<Guid> RequestAuthorizationAsync(AuthorizationRequestDto dto)
     {
-        var authorization = AuthorizationRequestFactory.Create(
-            dto.BeneficiaryId,
-            dto.PlanNumber,
-            dto.ProcedureCode,
-            dto.ClinicalJustification,
-            dto.RequestingProfessional,
-            dto.ExecutingEstablishment,
-            dto.ExpectedDate,
-            dto.MaterialsAndMedicines,
-            dto.IsUrgentOrEmergency
-        );
-
-        await _authorizationRepository.AddAsync(authorization);
-        
-        return authorization.Id;
+        return await _requestAuthorization.ExecuteAsync(dto);
     }
 
     public async Task ApproveAuthorizationAsync(Guid authorizationId)
     {
-        var authorization = await GetRequiredAuthorizationAsync(authorizationId);
-        authorization.ApproveFully();
-        await _authorizationRepository.UpdateAsync(authorization);
+        await _approveAuthorization.ExecuteAsync(authorizationId);
     }
 
     public async Task ApproveAuthorizationPartiallyAsync(Guid authorizationId, Dictionary<Guid, int> approvedQuantities)
     {
-        var authorization = await GetRequiredAuthorizationAsync(authorizationId);
-        authorization.ApprovePartially(approvedQuantities);
-        await _authorizationRepository.UpdateAsync(authorization);
+        await _approveAuthorizationPartially.ExecuteAsync(authorizationId, approvedQuantities);
     }
 
     public async Task DenyAuthorizationAsync(Guid authorizationId, GlosaReason reason, string details)
     {
-        var authorization = await GetRequiredAuthorizationAsync(authorizationId);
-        authorization.Deny(reason, details);
-        await _authorizationRepository.UpdateAsync(authorization);
+        await _denyAuthorization.ExecuteAsync(authorizationId, reason, details);
     }
 
     public async Task RegisterDocumentPendingAsync(Guid authorizationId, string missingDocuments)
     {
-        var authorization = await GetRequiredAuthorizationAsync(authorizationId);
-        authorization.RegisterDocumentPending(missingDocuments);
-        await _authorizationRepository.UpdateAsync(authorization);
+        await _registerDocumentPending.ExecuteAsync(authorizationId, missingDocuments);
     }
 
     public async Task<AuthorizationStatusDto> GetAuthorizationStatusAsync(Guid authorizationId)
     {
-        var authorization = await GetRequiredAuthorizationAsync(authorizationId);
-
-        return new AuthorizationStatusDto
-        {
-            Id = authorization.Id,
-            Status = authorization.Status,
-            RequiresPostPaymentAudit = authorization.RequiresPostPaymentAudit,
-            DenialReason = authorization.DenialReason,
-            PendingReason = authorization.PendingReason,
-            Items = authorization.Items
-                .Select(item => new AuthorizationItemStatusDto
-                {
-                    Id = item.Id,
-                    Description = item.Description,
-                    RequestedQuantity = item.RequestedQuantity,
-                    ApprovedQuantity = item.ApprovedQuantity
-                })
-                .ToList()
-        };
-    }
-
-    private async Task<AuthorizationRequest> GetRequiredAuthorizationAsync(Guid authorizationId)
-    {
-        var authorization = await _authorizationRepository.GetByIdAsync(authorizationId);
-        if (authorization == null)
-            throw new KeyNotFoundException("Solicitação de autorização não encontrada.");
-
-        return authorization;
+        return await _getAuthorizationStatus.ExecuteAsync(authorizationId);
     }
 }
