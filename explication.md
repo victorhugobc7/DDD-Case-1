@@ -513,7 +513,7 @@ Eles dizem o que o dominio precisa:
 
 - buscar por id;
 - adicionar;
-- atualizar.
+- atualizar quando o fluxo precisa mudar um aggregate ja salvo.
 
 Eles nao dizem como salvar.
 
@@ -521,11 +521,12 @@ A implementacao real fica em `Infra`:
 
 ```text
 Infra/Repositories/AuthorizationRepository.cs
+Infra/Repositories/HospitalBillRepository.cs
 ```
 
-Hoje ela salva em memoria com `ConcurrentDictionary`.
+Hoje elas salvam em SQLite. A UI usa, por padrao, o arquivo `health-insurance.db`.
 
-No futuro poderia salvar em banco de dados, e o dominio nao precisaria mudar.
+No futuro poderia trocar SQLite por outro banco, e o dominio nao precisaria mudar.
 
 ---
 
@@ -612,7 +613,7 @@ AuthorizationRequest
   protege as regras de negocio
 
 Infra
-  salva em memoria com AuthorizationRepository
+  salva no SQLite com AuthorizationRepository
 ```
 
 Fluxo de aprovar autorizacao:
@@ -632,6 +633,22 @@ AuthorizationRequest
   muda status para AprovadaIntegralmente
 ```
 
+Fluxo de criar conta hospitalar:
+
+```text
+UI
+  chama BillingService.CreateHospitalBillFromAuthorizationAsync
+
+CreateHospitalBillFromAuthorizationUseCase
+  busca AuthorizationRequest pelo IAuthorizationRepository
+  valida se a autorizacao esta aprovada
+  cria HospitalBill com os itens aprovados
+  salva pelo IHospitalBillRepository
+
+Infra
+  salva no SQLite com HospitalBillRepository
+```
+
 ---
 
 ## 14. Tabela rapida
@@ -647,9 +664,9 @@ AuthorizationRequest
 | Factory | Cria objeto complexo corretamente | `AuthorizationRequestFactory` |
 | Domain Service | Regra que cruza varios objetos | `EligibilityService` |
 | Use Case | Acao do sistema | `RequestAuthorizationUseCase` |
-| Application Service | Fachada da aplicacao | `AuthorizationService` |
-| Repository | Busca e salva aggregates | `IAuthorizationRepository` |
-| Infra | Implementa detalhe tecnico | `AuthorizationRepository` |
+| Application Service | Fachada da aplicacao | `AuthorizationService`, `BillingService` |
+| Repository | Busca e salva aggregates | `IAuthorizationRepository`, `IHospitalBillRepository` |
+| Infra | Implementa detalhe tecnico | `AuthorizationRepository`, `HospitalBillRepository` |
 
 ---
 

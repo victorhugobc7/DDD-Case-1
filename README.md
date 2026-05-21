@@ -2,7 +2,7 @@
 
 **Versão da entrega implementada:** DDD tático v1
 
-**Status:** Implementação demonstrável do fluxo de Autorização de Procedimento
+**Status:** Implementação demonstrável dos fluxos de Autorização de Procedimento e Faturamento básico
 
 **Última Atualização:** Maio de 2026
 
@@ -16,7 +16,7 @@ Este projeto implementa a modelagem arquitetural de um **sistema de gestão de o
 - **Faturamento em Lotes TISS** (padrão obrigatório ANS)
 - **Auditoria e Glosas** (controle de fraude e pertinência)
 
-O código atual implementa o recorte **DDD tático v1**, concentrado em Autorização de Procedimento. Os tópicos ANS/TISS v2, GuiaTISS, FaturamentoXML e Auditoria formal permanecem descritos como evolução futura do modelo.
+O código atual implementa o recorte **DDD tático v1**, concentrado em Autorização de Procedimento e criação de conta hospitalar a partir de uma autorização aprovada. Os tópicos ANS/TISS v2, GuiaTISS, FaturamentoXML e Auditoria formal permanecem descritos como evolução futura do modelo.
 
 ---
 
@@ -25,9 +25,9 @@ O código atual implementa o recorte **DDD tático v1**, concentrado em Autoriza
 Projetos:
 
 - `Domain`: regras de negócio organizadas por tipo em `Domain/Aggregates`, `Domain/ValueObjects`, `Domain/Enums`, `Domain/Factories`, `Domain/Services` e `Domain/Repositories`, mantendo subpastas por área de negócio.
-- `Application`: DTOs e `AuthorizationService`, coordenando casos de uso sem concentrar regra de negócio.
-- `Infra`: repository em memória para demonstração.
-- `UI`: console demonstrando solicitação pendente, aprovação parcial e urgência/emergência com auditoria posterior.
+- `Application`: DTOs, `AuthorizationService` e `BillingService`, coordenando casos de uso sem concentrar regra de negócio.
+- `Infra`: repositories SQLite para persistência local.
+- `UI`: console demonstrando solicitação pendente, aprovação parcial, criação de conta hospitalar e urgência/emergência com auditoria posterior.
 - `Tests`: runner de testes sem dependências externas.
 
 ### Estrutura do Domain
@@ -135,8 +135,10 @@ As principais regras centralizadas no domínio foram:
 
 - **Factory**: `AuthorizationRequestFactory`, no módulo de Autorizações, cria uma solicitação completa com value objects e itens solicitados.
 - **Domain Service**: `EligibilityService`, no módulo de Autorizações, valida elegibilidade cruzando beneficiário, plano e procedimento.
-- **Application Service**: `AuthorizationService`, no projeto `Application`, coordena os casos de uso e chama o domínio sem concentrar regra de negócio.
-- **Repositories**: `IAuthorizationRepository` e `IHospitalBillRepository` são contratos do domínio. `AuthorizationRepository`, no projeto `Infra`, é a implementação em memória usada na demonstração.
+- **Application Service**: `AuthorizationService` e `BillingService`, no projeto `Application`, coordenam os casos de uso e chamam o domínio sem concentrar regra de negócio.
+- **Repositories**: `IAuthorizationRepository` e `IHospitalBillRepository` são contratos do domínio. `AuthorizationRepository` e `HospitalBillRepository`, no projeto `Infra`, persistem os aggregates em SQLite.
+
+Por padrão, a UI usa o arquivo `health-insurance.db` na pasta em que o programa é executado.
 
 #### 8. Quais foram as decisões mais difíceis de modelagem
 

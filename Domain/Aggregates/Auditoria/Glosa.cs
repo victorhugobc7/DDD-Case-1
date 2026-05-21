@@ -31,6 +31,11 @@ public class Glosa
         Appeal = null;
     }
 
+    public static Glosa Restore(Guid id, Guid billItemId, GlosaReason reason, string details, bool isClawback)
+    {
+        return new Glosa(id, billItemId, reason, details, isClawback);
+    }
+
     public void FileAppeal(List<Evidence> evidenceDocuments)
     {
         if (Appeal != null)

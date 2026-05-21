@@ -11,6 +11,8 @@ public class RequestedItem
 
     public RequestedItem(Guid id, string description, int requestedQuantity)
     {
+        if (id == Guid.Empty)
+            throw new ArgumentException("O id do item solicitado é inválido.", nameof(id));
         if (string.IsNullOrWhiteSpace(description))
             throw new ArgumentException("A descrição não pode ser vazia.", nameof(description));
         if (requestedQuantity <= 0)
@@ -20,6 +22,14 @@ public class RequestedItem
         Description = description;
         RequestedQuantity = requestedQuantity;
         ApprovedQuantity = 0;
+    }
+
+    public static RequestedItem Restore(Guid id, string description, int requestedQuantity, int approvedQuantity)
+    {
+        var item = new RequestedItem(id, description, requestedQuantity);
+        item.ApprovePartially(approvedQuantity);
+
+        return item;
     }
 
     public void ApproveFully()

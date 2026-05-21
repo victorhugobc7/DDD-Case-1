@@ -19,6 +19,8 @@ public class BillItem
 
     public BillItem(Guid id, Guid approvedAuthorizationId, string description, int quantity, decimal unitValue)
     {
+        if (id == Guid.Empty)
+            throw new ArgumentException("O id do item de conta é inválido.", nameof(id));
         if (approvedAuthorizationId == Guid.Empty)
             throw new ArgumentException("Um item de conta deve estar ligado a uma Autorização Aprovada válida.", nameof(approvedAuthorizationId));
         if (string.IsNullOrWhiteSpace(description))
@@ -34,6 +36,22 @@ public class BillItem
         Quantity = quantity;
         UnitValue = unitValue;
         _glosas = new List<Glosa>();
+    }
+
+    public static BillItem Restore(
+        Guid id,
+        Guid approvedAuthorizationId,
+        string description,
+        int quantity,
+        decimal unitValue,
+        List<Glosa> glosas)
+    {
+        var item = new BillItem(id, approvedAuthorizationId, description, quantity, unitValue);
+
+        if (glosas != null)
+            item._glosas.AddRange(glosas);
+
+        return item;
     }
 
     public void ApplyGlosa(GlosaReason reason, string details)

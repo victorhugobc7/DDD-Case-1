@@ -62,6 +62,42 @@ public class AuthorizationRequest
         RequiresPostPaymentAudit = false;
     }
 
+    public static AuthorizationRequest Restore(
+        Guid id,
+        Guid beneficiaryId,
+        PlanNumber planNumber,
+        ProcedureCode procedureCode,
+        CidCode clinicalJustification,
+        ProfessionalRegistry requestingProfessional,
+        string executingEstablishment,
+        DateTime expectedDate,
+        List<RequestedItem> items,
+        AuthorizationStatus status,
+        bool isUrgentOrEmergency,
+        bool requiresPostPaymentAudit,
+        string? denialReason,
+        string? pendingReason)
+    {
+        var authorization = new AuthorizationRequest(
+            id,
+            beneficiaryId,
+            planNumber,
+            procedureCode,
+            clinicalJustification,
+            requestingProfessional,
+            executingEstablishment,
+            expectedDate,
+            items,
+            isUrgentOrEmergency);
+
+        authorization.Status = status;
+        authorization.RequiresPostPaymentAudit = requiresPostPaymentAudit;
+        authorization.DenialReason = denialReason;
+        authorization.PendingReason = pendingReason;
+
+        return authorization;
+    }
+
     public void SetAsEmergencyException()
     {
         EnsurePending();
