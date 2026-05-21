@@ -1,8 +1,10 @@
 # Sistema de Gestão de Operadora de Saúde (DDD Case)
 
-**Versão:** 2.0  
-**Status:** Documentação Inicial  
-**Última Atualização:** Março de 2026
+**Versão da entrega implementada:** DDD tático v1
+
+**Status:** Implementação demonstrável dos fluxos de Autorização de Procedimento e Faturamento básico
+
+**Última Atualização:** Maio de 2026
 
 ---
 
@@ -13,6 +15,147 @@ Este projeto implementa a modelagem arquitetural de um **sistema de gestão de o
 - **Execução de Procedimentos** (rastreabilidade médica)
 - **Faturamento em Lotes TISS** (padrão obrigatório ANS)
 - **Auditoria e Glosas** (controle de fraude e pertinência)
+
+O código atual implementa o recorte **DDD tático v1**, concentrado em Autorização de Procedimento e criação de conta hospitalar a partir de uma autorização aprovada. Os tópicos ANS/TISS v2, GuiaTISS, FaturamentoXML e Auditoria formal permanecem descritos como evolução futura do modelo.
+
+---
+
+## Estado da Implementação
+
+Projetos:
+
+- `Domain`: regras de negócio organizadas por tipo em `Domain/Aggregates`, `Domain/ValueObjects`, `Domain/Enums`, `Domain/Factories`, `Domain/Services` e `Domain/Repositories`, mantendo subpastas por área de negócio.
+- `Application`: DTOs, `AuthorizationService` e `BillingService`, coordenando casos de uso sem concentrar regra de negócio.
+- `Infra`: repositories SQLite para persistência local.
+- `UI`: console demonstrando solicitação pendente, aprovação parcial, criação de conta hospitalar e urgência/emergência com auditoria posterior.
+- `Tests`: runner de testes sem dependências externas.
+
+### Estrutura do Domain
+
+Os itens do domínio ficam separados por tipo técnico, com subpastas por área de negócio:
+
+| Tipo | Pasta | Responsabilidade |
+|------|-------|------------------|
+| **Aggregates** | `Domain/Aggregates` | Aggregate roots e entities internas que protegem regras de consistência. |
+| **ValueObjects** | `Domain/ValueObjects` | Tipos definidos pelo valor, sem identidade própria. |
+| **Enums** | `Domain/Enums` | Estados, categorias e motivos fechados do domínio. |
+| **Factories** | `Domain/Factories` | Criação padronizada de aggregates quando a montagem possui regra ou composição. |
+| **Services** | `Domain/Services` | Domain services com regras que cruzam mais de um aggregate ou entity. |
+| **Repositories** | `Domain/Repositories` | Contratos de persistência definidos pelo domínio. |
+
+### Módulos de Domínio Implementados
+
+Os módulos continuam representados nas subpastas por área de negócio. A lista abaixo é a divisão modular do projeto; as tabelas de entidades v1.0/v2.0 continuam sendo apenas o catálogo de entidades e conceitos do domínio.
+
+| Módulo | Pasta | Principais tipos |
+|--------|-------|------------------|
+| **Beneficiários** | `Domain/Aggregates/Beneficiarios`, `Domain/Enums/Beneficiarios` | `Beneficiary`, `BeneficiaryStatus` |
+| **Planos** | `Domain/Aggregates/Planos`, `Domain/ValueObjects/Planos`, `Domain/Enums/Planos` | `Plan`, `PlanNumber`, `PlanType` |
+| **Procedimentos** | `Domain/Aggregates/Procedimentos`, `Domain/ValueObjects/Procedimentos`, `Domain/Enums/Procedimentos` | `ProcedureCatalogItem`, `ProcedureCode`, `ProcedureType`, `CidCode` |
+| **Rede Credenciada** | `Domain/ValueObjects/RedeCredenciada` | `ProfessionalRegistry` |
+| **Autorizações** | `Domain/Aggregates/Autorizacoes`, `Domain/Enums/Autorizacoes`, `Domain/Factories/Autorizacoes`, `Domain/Services/Autorizacoes`, `Domain/Repositories/Autorizacoes` | `AuthorizationRequest`, `RequestedItem`, `AuthorizationStatus`, `AuthorizationRequestFactory`, `EligibilityService`, `IAuthorizationRepository` |
+| **Faturamento** | `Domain/Aggregates/Faturamento`, `Domain/Repositories/Faturamento` | `HospitalBill`, `BillItem`, `IHospitalBillRepository` |
+| **Auditoria** | `Domain/Aggregates/Auditoria`, `Domain/ValueObjects/Auditoria`, `Domain/Enums/Auditoria` | `Glosa`, `AdministrativeAppeal`, `Evidence`, `GlosaReason`, `AppealStatus` |
+
+### Roteiro da Atividade
+
+#### 1. Qual era o problema do case
+
+O case trata da modelagem de uma operadora de saúde que precisa controlar solicitações de procedimentos, validação de elegibilidade, regras de plano, execução/faturamento e possíveis glosas. O problema central era transformar um fluxo de saúde suplementar, cheio de regras e exceções, em um modelo de domínio organizado, rastreável e preparado para evolução para padrões ANS/TISS.
+
+#### 2. Quais módulos foram definidos
+
+Foram definidos módulos por área de negócio, não por tipo técnico de classe:
+
+- **Beneficiários**: dados e situação do segurado.
+- **Planos**: produto contratado, número do plano, tipo e regras de carência.
+- **Procedimentos**: catálogo de procedimentos, código do procedimento, tipo e CID.
+- **Rede Credenciada**: identificação do profissional/prestador envolvido.
+- **Autorizações**: solicitação, itens solicitados, status, fábrica e elegibilidade.
+- **Faturamento**: conta hospitalar e itens faturados.
+- **Auditoria**: glosas, motivos, evidências e recurso administrativo.
+
+#### 3. Quais foram as principais Entities e Value Objects
+
+Principais **Entities**:
+
+- `Beneficiary`
+- `Plan`
+- `ProcedureCatalogItem`
+- `AuthorizationRequest`
+- `RequestedItem`
+- `HospitalBill`
+- `BillItem`
+- `Glosa`
+- `AdministrativeAppeal`
+
+Principais **Value Objects**:
+
+- `PlanNumber`
+- `ProcedureCode`
+- `CidCode`
+- `ProfessionalRegistry`
+- `Evidence`
+
+#### 4. Quais Aggregates foram definidos
+
+No recorte implementado, os principais aggregates são:
+
+- `AuthorizationRequest`, contendo seus `RequestedItem`.
+- `HospitalBill`, contendo seus `BillItem`.
+- `BillItem`, concentrando as `Glosa` aplicadas ao item faturado.
+- `Glosa`, controlando seu `AdministrativeAppeal`.
+- `Beneficiary`, `Plan` e `ProcedureCatalogItem` aparecem como aggregates simples de referência do domínio.
+
+#### 5. Qual classe foi escolhida como Aggregate Root e por quê
+
+A principal **Aggregate Root** escolhida foi `AuthorizationRequest`, porque ela concentra o ciclo de vida da solicitação de autorização. É nela que ficam o status da solicitação, os itens solicitados, a aprovação integral/parcial, a negativa, a pendência documental e a exceção de urgência/emergência com auditoria posterior.
+
+Essa escolha evita que outras camadas alterem diretamente os itens ou o status sem passar pelas regras do domínio.
+
+#### 6. Quais regras de negócio foram centralizadas no domínio
+
+As principais regras centralizadas no domínio foram:
+
+- Solicitação de autorização deve possuir pelo menos um item.
+- Item solicitado deve ter quantidade maior que zero.
+- Apenas solicitações pendentes podem ser aprovadas, negadas ou marcadas com pendência.
+- Aprovação integral aprova todos os itens.
+- Aprovação parcial valida se os itens pertencem à solicitação e se as quantidades são válidas.
+- Negativa exige justificativa.
+- Urgência/emergência é aprovada como exceção e exige auditoria posterior.
+- Beneficiário inativo não pode ter autorização aprovada.
+- Beneficiário deve pertencer ao plano informado.
+- Plano aplica carência por tipo de procedimento.
+- Procedimento pode restringir idade mínima e máxima.
+- Glosa exige justificativa.
+- Uma glosa só pode ter um recurso administrativo ativo.
+
+#### 7. Onde foram usados Factories, Services e Repositories
+
+- **Factory**: `AuthorizationRequestFactory`, no módulo de Autorizações, cria uma solicitação completa com value objects e itens solicitados.
+- **Domain Service**: `EligibilityService`, no módulo de Autorizações, valida elegibilidade cruzando beneficiário, plano e procedimento.
+- **Application Service**: `AuthorizationService` e `BillingService`, no projeto `Application`, coordenam os casos de uso e chamam o domínio sem concentrar regra de negócio.
+- **Repositories**: `IAuthorizationRepository` e `IHospitalBillRepository` são contratos do domínio. `AuthorizationRepository` e `HospitalBillRepository`, no projeto `Infra`, persistem os aggregates em SQLite.
+
+Por padrão, a UI usa o arquivo `health-insurance.db` na pasta em que o programa é executado.
+
+#### 8. Quais foram as decisões mais difíceis de modelagem
+
+- Separar **módulos de negócio** de uma simples lista de entidades.
+- Escolher `AuthorizationRequest` como Aggregate Root principal, já que o fluxo implementado começa pela autorização.
+- Decidir o que implementar no recorte v1 e o que deixar como evolução ANS/TISS v2.
+- Modelar urgência/emergência como exceção aprovada com auditoria posterior.
+- Separar `Plan` como produto/regras do plano, deixando `Contrato` como evolução futura.
+- Representar `Glosa` com rastreabilidade e possibilidade de recurso, em vez de tratá-la como simples desconto.
+
+Validação esperada com SDK .NET compatível com `net10.0`:
+
+```bash
+dotnet build HealthInsurance.slnx
+dotnet run --project Tests/Tests.csproj
+dotnet run --project UI/UI.csproj
+```
 
 ---
 

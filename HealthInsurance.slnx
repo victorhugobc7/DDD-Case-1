@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Domain/Domain.csproj" />
+  <Project Path="Application/Application.csproj" />
+  <Project Path="Infra/Infra.csproj" />
+  <Project Path="UI/UI.csproj" />
+  <Project Path="Tests/Tests.csproj" />
+</Solution>
