@@ -8,4 +8,7 @@ public interface IBillingService
 {
     Task<Guid> CreateHospitalBillFromAuthorizationAsync(CreateHospitalBillDto dto);
     Task<HospitalBillDto> GetHospitalBillAsync(Guid billId);
+    Task<Guid> ApplyGlosaToItemAsync(ApplyGlosaDto dto);
+    Task FileGlosaAppealAsync(FileGlosaAppealDto dto);
+    Task CloseHospitalBillAsync(Guid billId);
 }

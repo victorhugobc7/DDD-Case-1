@@ -2,10 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
-using Domain.Aggregates.Auditoria;
-using Domain.Aggregates.Faturamento;
-using Domain.Enums.Auditoria;
-using Domain.Repositories.Faturamento;
+using Domain.Audit;
+using Domain.Billing;
 using Infra.Data;
 using Microsoft.Data.Sqlite;
 
@@ -34,7 +32,8 @@ public class HospitalBillRepository : IHospitalBillRepository
         command.CommandText = """
             SELECT id,
                    beneficiary_id,
-                   executing_establishment
+                   executing_establishment,
+                   status
               FROM hospital_bills
              WHERE id = $id;
             """;
@@ -47,20 +46,25 @@ public class HospitalBillRepository : IHospitalBillRepository
         var billId = Guid.Parse(reader.GetString(0));
         var beneficiaryId = Guid.Parse(reader.GetString(1));
         var executingEstablishment = reader.GetString(2);
+        var status = Enum.Parse<HospitalBillStatus>(reader.GetString(3));
 
         await reader.DisposeAsync();
 
-        var bill = new HospitalBill(billId, beneficiaryId, executingEstablishment);
         var items = await LoadItemsAsync(connection, billId);
-        foreach (var item in items)
-        {
-            bill.AddItem(item);
-        }
-
-        return bill;
+        return HospitalBill.Restore(billId, beneficiaryId, executingEstablishment, status, items);
     }
 
     public async Task AddAsync(HospitalBill bill)
+    {
+        await SaveAsync(bill);
+    }
+
+    public async Task UpdateAsync(HospitalBill bill)
+    {
+        await SaveAsync(bill);
+    }
+
+    private async Task SaveAsync(HospitalBill bill)
     {
         await using var connection = await HealthInsuranceDatabase.OpenConnectionAsync(_connectionString);
         using var transaction = connection.BeginTransaction();
@@ -91,21 +95,25 @@ public class HospitalBillRepository : IHospitalBillRepository
             INSERT INTO hospital_bills (
                 id,
                 beneficiary_id,
-                executing_establishment
+                executing_establishment,
+                status
             )
             VALUES (
                 $id,
                 $beneficiaryId,
-                $executingEstablishment
+                $executingEstablishment,
+                $status
             )
             ON CONFLICT(id) DO UPDATE SET
                 beneficiary_id = excluded.beneficiary_id,
-                executing_establishment = excluded.executing_establishment;
+                executing_establishment = excluded.executing_establishment,
+                status = excluded.status;
             """;
 
         command.Parameters.AddWithValue("$id", bill.Id.ToString());
         command.Parameters.AddWithValue("$beneficiaryId", bill.BeneficiaryId.ToString());
         command.Parameters.AddWithValue("$executingEstablishment", bill.ExecutingEstablishment);
+        command.Parameters.AddWithValue("$status", bill.Status.ToString());
 
         await command.ExecuteNonQueryAsync();
     }
@@ -154,7 +162,8 @@ public class HospitalBillRepository : IHospitalBillRepository
                 approved_authorization_id,
                 description,
                 quantity,
-                unit_value
+                unit_value,
+                unit_currency
             )
             VALUES (
                 $id,
@@ -163,7 +172,8 @@ public class HospitalBillRepository : IHospitalBillRepository
                 $approvedAuthorizationId,
                 $description,
                 $quantity,
-                $unitValue
+                $unitValue,
+                $unitCurrency
             );
             """;
 
@@ -173,7 +183,8 @@ public class HospitalBillRepository : IHospitalBillRepository
         command.Parameters.AddWithValue("$approvedAuthorizationId", item.ApprovedAuthorizationId.ToString());
         command.Parameters.AddWithValue("$description", item.Description);
         command.Parameters.AddWithValue("$quantity", item.Quantity);
-        command.Parameters.AddWithValue("$unitValue", item.UnitValue.ToString(CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("$unitValue", item.UnitValue.Amount.ToString(CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("$unitCurrency", item.UnitValue.Currency);
 
         await command.ExecuteNonQueryAsync();
     }
@@ -211,6 +222,67 @@ public class HospitalBillRepository : IHospitalBillRepository
             command.Parameters.AddWithValue("$isClawback", glosa.IsClawback ? 1 : 0);
 
             await command.ExecuteNonQueryAsync();
+
+            if (glosa.Appeal != null)
+                await InsertAppealAsync(connection, transaction, glosa.Appeal);
+        }
+    }
+
+    private static async Task InsertAppealAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        AdministrativeAppeal appeal)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO administrative_appeals (
+                id,
+                glosa_id,
+                status
+            )
+            VALUES (
+                $id,
+                $glosaId,
+                $status
+            );
+            """;
+
+        command.Parameters.AddWithValue("$id", appeal.Id.ToString());
+        command.Parameters.AddWithValue("$glosaId", appeal.GlosaId.ToString());
+        command.Parameters.AddWithValue("$status", appeal.Status.ToString());
+        await command.ExecuteNonQueryAsync();
+
+        var position = 0;
+        foreach (var evidence in appeal.EvidenceDocuments)
+        {
+            await using var evidenceCommand = connection.CreateCommand();
+            evidenceCommand.Transaction = transaction;
+            evidenceCommand.CommandText = """
+                INSERT INTO administrative_appeal_evidence (
+                    id,
+                    appeal_id,
+                    position,
+                    document_url,
+                    description
+                )
+                VALUES (
+                    $id,
+                    $appealId,
+                    $position,
+                    $documentUrl,
+                    $description
+                );
+                """;
+
+            evidenceCommand.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+            evidenceCommand.Parameters.AddWithValue("$appealId", appeal.Id.ToString());
+            evidenceCommand.Parameters.AddWithValue("$position", position);
+            evidenceCommand.Parameters.AddWithValue("$documentUrl", evidence.DocumentUrl);
+            evidenceCommand.Parameters.AddWithValue("$description", evidence.Description);
+            await evidenceCommand.ExecuteNonQueryAsync();
+
+            position++;
         }
     }
 
@@ -222,14 +294,15 @@ public class HospitalBillRepository : IHospitalBillRepository
                    approved_authorization_id,
                    description,
                    quantity,
-                   unit_value
+                   unit_value,
+                   unit_currency
               FROM hospital_bill_items
              WHERE hospital_bill_id = $billId
              ORDER BY position;
             """;
         command.Parameters.AddWithValue("$billId", billId.ToString());
 
-        var itemRows = new List<(Guid Id, Guid ApprovedAuthorizationId, string Description, int Quantity, decimal UnitValue)>();
+        var itemRows = new List<(Guid Id, Guid ApprovedAuthorizationId, string Description, int Quantity, Money UnitValue)>();
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
@@ -238,7 +311,9 @@ public class HospitalBillRepository : IHospitalBillRepository
                 Guid.Parse(reader.GetString(1)),
                 reader.GetString(2),
                 reader.GetInt32(3),
-                decimal.Parse(reader.GetString(4), CultureInfo.InvariantCulture)));
+                new Money(
+                    decimal.Parse(reader.GetString(4), CultureInfo.InvariantCulture),
+                    reader.GetString(5))));
         }
 
         await reader.DisposeAsync();
@@ -272,18 +347,77 @@ public class HospitalBillRepository : IHospitalBillRepository
             """;
         command.Parameters.AddWithValue("$itemId", itemId.ToString());
 
-        var glosas = new List<Glosa>();
+        var glosaRows = new List<(Guid Id, GlosaReason Reason, string Details, bool IsClawback)>();
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            glosas.Add(Glosa.Restore(
+            glosaRows.Add((
                 Guid.Parse(reader.GetString(0)),
-                itemId,
                 Enum.Parse<GlosaReason>(reader.GetString(1)),
                 reader.GetString(2),
                 reader.GetInt32(3) == 1));
         }
 
+        await reader.DisposeAsync();
+
+        var glosas = new List<Glosa>();
+        foreach (var glosaRow in glosaRows)
+        {
+            var appeal = await LoadAppealAsync(connection, glosaRow.Id);
+            glosas.Add(Glosa.Restore(
+                glosaRow.Id,
+                itemId,
+                glosaRow.Reason,
+                glosaRow.Details,
+                glosaRow.IsClawback,
+                appeal));
+        }
+
         return glosas;
+    }
+
+    private static async Task<AdministrativeAppeal?> LoadAppealAsync(SqliteConnection connection, Guid glosaId)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id,
+                   status
+              FROM administrative_appeals
+             WHERE glosa_id = $glosaId;
+            """;
+        command.Parameters.AddWithValue("$glosaId", glosaId.ToString());
+
+        await using var reader = await command.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+            return null;
+
+        var appealId = Guid.Parse(reader.GetString(0));
+        var status = Enum.Parse<AppealStatus>(reader.GetString(1));
+        await reader.DisposeAsync();
+
+        var evidenceDocuments = await LoadEvidenceAsync(connection, appealId);
+        return AdministrativeAppeal.Restore(appealId, glosaId, evidenceDocuments, status);
+    }
+
+    private static async Task<List<Evidence>> LoadEvidenceAsync(SqliteConnection connection, Guid appealId)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT document_url,
+                   description
+              FROM administrative_appeal_evidence
+             WHERE appeal_id = $appealId
+             ORDER BY position;
+            """;
+        command.Parameters.AddWithValue("$appealId", appealId.ToString());
+
+        var evidenceDocuments = new List<Evidence>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            evidenceDocuments.Add(new Evidence(reader.GetString(0), reader.GetString(1)));
+        }
+
+        return evidenceDocuments;
     }
 }
