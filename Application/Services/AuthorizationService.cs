@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Application.DTOs;
 using Application.Interfaces;
-using Application.UseCases.Autorizacoes;
-using Domain.Enums.Auditoria;
-using Domain.Repositories.Autorizacoes;
+using Application.UseCases.Authorizations;
+using Domain.Audit;
 
 namespace Application.Services;
 
@@ -18,14 +17,20 @@ public class AuthorizationService : IAuthorizationService
     private readonly RegisterDocumentPendingUseCase _registerDocumentPending;
     private readonly GetAuthorizationStatusUseCase _getAuthorizationStatus;
 
-    public AuthorizationService(IAuthorizationRepository authorizationRepository)
+    public AuthorizationService(
+        RequestAuthorizationUseCase requestAuthorization,
+        ApproveAuthorizationUseCase approveAuthorization,
+        ApproveAuthorizationPartiallyUseCase approveAuthorizationPartially,
+        DenyAuthorizationUseCase denyAuthorization,
+        RegisterDocumentPendingUseCase registerDocumentPending,
+        GetAuthorizationStatusUseCase getAuthorizationStatus)
     {
-        _requestAuthorization = new RequestAuthorizationUseCase(authorizationRepository);
-        _approveAuthorization = new ApproveAuthorizationUseCase(authorizationRepository);
-        _approveAuthorizationPartially = new ApproveAuthorizationPartiallyUseCase(authorizationRepository);
-        _denyAuthorization = new DenyAuthorizationUseCase(authorizationRepository);
-        _registerDocumentPending = new RegisterDocumentPendingUseCase(authorizationRepository);
-        _getAuthorizationStatus = new GetAuthorizationStatusUseCase(authorizationRepository);
+        _requestAuthorization = requestAuthorization ?? throw new ArgumentNullException(nameof(requestAuthorization));
+        _approveAuthorization = approveAuthorization ?? throw new ArgumentNullException(nameof(approveAuthorization));
+        _approveAuthorizationPartially = approveAuthorizationPartially ?? throw new ArgumentNullException(nameof(approveAuthorizationPartially));
+        _denyAuthorization = denyAuthorization ?? throw new ArgumentNullException(nameof(denyAuthorization));
+        _registerDocumentPending = registerDocumentPending ?? throw new ArgumentNullException(nameof(registerDocumentPending));
+        _getAuthorizationStatus = getAuthorizationStatus ?? throw new ArgumentNullException(nameof(getAuthorizationStatus));
     }
 
     public async Task<Guid> RequestAuthorizationAsync(AuthorizationRequestDto dto)

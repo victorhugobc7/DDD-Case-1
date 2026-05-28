@@ -3,12 +3,10 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using Domain.Aggregates.Autorizacoes;
-using Domain.Enums.Autorizacoes;
-using Domain.Repositories.Autorizacoes;
-using Domain.ValueObjects.Planos;
-using Domain.ValueObjects.Procedimentos;
-using Domain.ValueObjects.RedeCredenciada;
+using Domain.Authorizations;
+using Domain.Plans;
+using Domain.Procedures;
+using Domain.ProviderNetwork;
 using Infra.Data;
 using Microsoft.Data.Sqlite;
 
@@ -61,7 +59,7 @@ public class AuthorizationRepository : IAuthorizationRepository
         var beneficiaryId = Guid.Parse(reader.GetString(1));
         var planNumber = reader.GetString(2);
         var procedureCode = reader.GetString(3);
-        var clinicalJustification = reader.GetString(4);
+        var cidCode = reader.GetString(4);
         var requestingProfessional = reader.GetString(5);
         var executingEstablishment = reader.GetString(6);
         var expectedDate = DateTime.Parse(reader.GetString(7), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
@@ -80,7 +78,7 @@ public class AuthorizationRepository : IAuthorizationRepository
             beneficiaryId,
             new PlanNumber(planNumber),
             new ProcedureCode(procedureCode),
-            new CidCode(clinicalJustification),
+            new CidCode(cidCode),
             new ProfessionalRegistry(requestingProfessional),
             executingEstablishment,
             expectedDate,
@@ -150,7 +148,7 @@ public class AuthorizationRepository : IAuthorizationRepository
                 $beneficiaryId,
                 $planNumber,
                 $procedureCode,
-                $clinicalJustification,
+                $cidCode,
                 $requestingProfessional,
                 $executingEstablishment,
                 $expectedDate,
@@ -179,7 +177,7 @@ public class AuthorizationRepository : IAuthorizationRepository
         command.Parameters.AddWithValue("$beneficiaryId", authorizationRequest.BeneficiaryId.ToString());
         command.Parameters.AddWithValue("$planNumber", authorizationRequest.PlanNumber.Value);
         command.Parameters.AddWithValue("$procedureCode", authorizationRequest.ProcedureCode.Value);
-        command.Parameters.AddWithValue("$clinicalJustification", authorizationRequest.ClinicalJustification.Value);
+        command.Parameters.AddWithValue("$cidCode", authorizationRequest.CidCode.Value);
         command.Parameters.AddWithValue("$requestingProfessional", authorizationRequest.RequestingProfessional.Value);
         command.Parameters.AddWithValue("$executingEstablishment", authorizationRequest.ExecutingEstablishment);
         command.Parameters.AddWithValue("$expectedDate", authorizationRequest.ExpectedDate.ToString("O", CultureInfo.InvariantCulture));
