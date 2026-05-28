@@ -378,7 +378,7 @@ O principal exemplo é a elegibilidade:
 
 Essas regras ficam em EligibilityService, pois cruzam Beneficiary, Plan e ProcedureCatalogItem.
 
-Na versão atual, EligibilityService está coberto por testes, mas ainda não está integrado ao fluxo real de RequestAuthorizationUseCase ou ApproveAuthorizationUseCase. Isso significa que a regra existe no domínio, mas precisa ser chamada pela aplicação para valer no fluxo completo.
+Na versão atual, EligibilityService está integrado ao fluxo real de RequestAuthorizationUseCase, sendo chamado antes da criação da autorização para garantir que o beneficiário é elegível para o procedimento solicitado.
 
 # **MÓDULOS, FACTORIES, SERVICES E REPOSITORIES**
 
@@ -446,7 +446,7 @@ Regras aplicadas:
 * carência do plano precisa estar cumprida para o tipo de procedimento;
 * idade do beneficiário precisa ser permitida pelo procedimento.
 
-Na versão atual, esse serviço está validado pelos testes de domínio, mas ainda não é chamado no fluxo principal de solicitação ou aprovação de autorização.
+Na versão atual, esse serviço é chamado no fluxo principal de solicitação de autorização: RequestAuthorizationUseCase invoca EligibilityService.ValidateEligibility(...) antes de criar a AuthorizationRequest, garantindo que as regras de domínio sejam aplicadas no fluxo completo.
 
 ## **4\. Application Services**
 
