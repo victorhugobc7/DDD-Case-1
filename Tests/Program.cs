@@ -1,19 +1,14 @@
 using Application.DTOs;
 using Application.Services;
-using Domain.Aggregates.Autorizacoes;
-using Domain.Aggregates.Beneficiarios;
-using Domain.Aggregates.Planos;
-using Domain.Aggregates.Procedimentos;
-using Domain.Enums.Auditoria;
-using Domain.Enums.Autorizacoes;
-using Domain.Enums.Beneficiarios;
-using Domain.Enums.Planos;
-using Domain.Enums.Procedimentos;
-using Domain.Factories.Autorizacoes;
-using Domain.Services.Autorizacoes;
-using Domain.ValueObjects.Planos;
-using Domain.ValueObjects.Procedimentos;
-using Domain.ValueObjects.RedeCredenciada;
+using Application.UseCases.Authorizations;
+using Application.UseCases.Billing;
+using Domain.Authorizations;
+using Domain.Beneficiaries;
+using Domain.Billing;
+using Domain.Plans;
+using Domain.Procedures;
+using Domain.Audit;
+using Domain.ProviderNetwork;
 using Infra.Repositories;
 
 namespace Tests;
@@ -60,11 +55,17 @@ public static class Program
         yield return ("elegibilidade barra idade fora da regra", TestEligibilityAge);
         yield return ("elegibilidade barra beneficiário inativo", TestEligibilityInactiveBeneficiary);
         yield return ("elegibilidade permite cenário válido", TestEligibilityAllowed);
+        yield return ("value objects rejeitam valores inválidos", TestValueObjectsRejectInvalidValues);
+        yield return ("administrative appeal valida ids e evidências", TestAdministrativeAppealRejectsInvalidData);
         yield return ("application coordena factory e repository", TestApplicationServiceFlow);
+        yield return ("application exige elegibilidade na solicitação", TestApplicationRequiresEligibility);
         yield return ("faturamento cria conta para autorização aprovada integralmente", TestBillingFullApprovalCreatesHospitalBill);
         yield return ("faturamento parcial usa somente itens aprovados", TestBillingPartialApprovalUsesOnlyApprovedItems);
         yield return ("faturamento rejeita autorização pendente ou negada", TestBillingRejectsPendingOrDeniedAuthorization);
         yield return ("faturamento exige valor unitário válido por item aprovado", TestBillingRequiresUnitValueForApprovedItems);
+        yield return ("money soma valores e rejeita moedas diferentes", TestMoneyOperations);
+        yield return ("hospital bill calcula total e fecha conta", TestHospitalBillCloseBlocksChanges);
+        yield return ("glosa passa pela conta hospitalar e aceita recurso", TestGlosaAppealFlow);
         yield return ("repositories persistem dados em SQLite", TestRepositoriesPersistInSqliteDatabase);
     }
 
@@ -211,22 +212,38 @@ public static class Program
         return Task.CompletedTask;
     }
 
+    private static Task TestValueObjectsRejectInvalidValues()
+    {
+        AssertThrows<ArgumentException>(() => new PlanNumber(""));
+        AssertThrows<ArgumentException>(() => new ProcedureCode(""));
+        AssertThrows<ArgumentException>(() => new CidCode("CID invalido"));
+        AssertThrows<ArgumentException>(() => new ProfessionalRegistry(""));
+        AssertThrows<ArgumentException>(() => new Evidence("", "Laudo"));
+        return Task.CompletedTask;
+    }
+
+    private static Task TestAdministrativeAppealRejectsInvalidData()
+    {
+        var evidence = new List<Evidence>
+        {
+            new("https://example.test/laudo.pdf", "Laudo anexado")
+        };
+
+        AssertThrows<ArgumentException>(() =>
+            AdministrativeAppeal.Restore(Guid.Empty, Guid.NewGuid(), evidence, AppealStatus.EmAnalise));
+        AssertThrows<ArgumentException>(() =>
+            AdministrativeAppeal.Restore(Guid.NewGuid(), Guid.Empty, evidence, AppealStatus.EmAnalise));
+        AssertThrows<ArgumentException>(() =>
+            AdministrativeAppeal.Restore(Guid.NewGuid(), Guid.NewGuid(), new List<Evidence>(), AppealStatus.EmAnalise));
+
+        return Task.CompletedTask;
+    }
+
     private static async Task TestApplicationServiceFlow()
     {
-        var repository = new AuthorizationRepository(CreateTestDatabasePath());
-        var service = new AuthorizationService(repository);
-        var dto = new AuthorizationRequestDto
-        {
-            BeneficiaryId = Guid.NewGuid(),
-            PlanNumber = "123456",
-            ProcedureCode = "9999",
-            ClinicalJustification = "M54.5",
-            RequestingProfessional = "CRM-12345",
-            ExecutingEstablishment = "Hospital BemAli",
-            ExpectedDate = DateTime.Today.AddDays(1),
-            MaterialsAndMedicines = new List<string> { "Soro", "Dipirona" },
-            IsUrgentOrEmergency = false
-        };
+        var context = await CreateServicesWithReferenceDataAsync();
+        var service = context.AuthorizationService;
+        var dto = CreateAuthorizationDto(context.BeneficiaryId);
 
         var authorizationId = await service.RequestAuthorizationAsync(dto);
         var pending = await service.GetAuthorizationStatusAsync(authorizationId);
@@ -245,10 +262,40 @@ public static class Program
         AssertTrue(denied.DenialReason?.Contains("Laudo médico não anexado.") == true, "A negativa deveria retornar detalhes.");
     }
 
+    private static async Task TestApplicationRequiresEligibility()
+    {
+        var inactive = await CreateServicesWithReferenceDataAsync(status: BeneficiaryStatus.Inativo);
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            inactive.AuthorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(inactive.BeneficiaryId)));
+
+        var urgentInactiveDto = CreateAuthorizationDto(inactive.BeneficiaryId);
+        urgentInactiveDto.IsUrgentOrEmergency = true;
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            inactive.AuthorizationService.RequestAuthorizationAsync(urgentInactiveDto));
+
+        var inGracePeriod = await CreateServicesWithReferenceDataAsync(joinDate: DateTime.Today.AddDays(-10), graceDays: 180);
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            inGracePeriod.AuthorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(inGracePeriod.BeneficiaryId)));
+
+        var wrongAge = await CreateServicesWithReferenceDataAsync(procedureMinimumAge: 40, procedureMaximumAge: 65);
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            wrongAge.AuthorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(wrongAge.BeneficiaryId)));
+
+        var planMismatch = await CreateServicesWithReferenceDataAsync();
+        var alternativePlanRepository = new PlanRepository(planMismatch.DatabasePath);
+        await alternativePlanRepository.AddAsync(new Plan(Guid.NewGuid(), "654321", PlanType.Individual, 0));
+        var mismatchedPlanDto = CreateAuthorizationDto(planMismatch.BeneficiaryId);
+        mismatchedPlanDto.PlanNumber = "654321";
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            planMismatch.AuthorizationService.RequestAuthorizationAsync(mismatchedPlanDto));
+    }
+
     private static async Task TestBillingFullApprovalCreatesHospitalBill()
     {
-        var (authorizationService, billingService) = CreateBillingServices();
-        var dto = CreateAuthorizationDto();
+        var context = await CreateServicesWithReferenceDataAsync();
+        var authorizationService = context.AuthorizationService;
+        var billingService = context.BillingService;
+        var dto = CreateAuthorizationDto(context.BeneficiaryId);
 
         var authorizationId = await authorizationService.RequestAuthorizationAsync(dto);
         await authorizationService.ApproveAuthorizationAsync(authorizationId);
@@ -257,7 +304,7 @@ public static class Program
         var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
         {
             AuthorizationId = authorizationId,
-            UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => 25m)
+            UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => MoneyDto(25m))
         });
 
         var bill = await billingService.GetHospitalBillAsync(billId);
@@ -266,14 +313,17 @@ public static class Program
         AssertEqual(dto.ExecutingEstablishment, bill.ExecutingEstablishment);
         AssertEqual(2, bill.Items.Count);
         AssertTrue(bill.Items.All(item => item.ApprovedAuthorizationId == authorizationId), "Todos os itens deveriam apontar para a autorização aprovada.");
-        AssertTrue(bill.Items.All(item => item.Quantity == 1), "Todos os itens deveriam faturar a quantidade aprovada.");
-        AssertEqual(50m, bill.TotalValue);
+        AssertTrue(bill.Items.Any(item => item.Quantity == 2), "A quantidade solicitada deveria ser preservada no faturamento.");
+        AssertEqual(75m, bill.TotalValue.Amount);
+        AssertEqual("BRL", bill.TotalValue.Currency);
     }
 
     private static async Task TestBillingPartialApprovalUsesOnlyApprovedItems()
     {
-        var (authorizationService, billingService) = CreateBillingServices();
-        var authorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+        var context = await CreateServicesWithReferenceDataAsync();
+        var authorizationService = context.AuthorizationService;
+        var billingService = context.BillingService;
+        var authorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(context.BeneficiaryId));
 
         var pending = await authorizationService.GetAuthorizationStatusAsync(authorizationId);
         var approvedItem = pending.Items.First();
@@ -285,7 +335,7 @@ public static class Program
         var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
         {
             AuthorizationId = authorizationId,
-            UnitValuesByItemId = new Dictionary<Guid, decimal> { [approvedItem.Id] = 12.50m }
+            UnitValuesByItemId = new Dictionary<Guid, MoneyDto> { [approvedItem.Id] = MoneyDto(12.50m) }
         });
 
         var bill = await billingService.GetHospitalBillAsync(billId);
@@ -295,24 +345,26 @@ public static class Program
         AssertEqual(authorizationId, billItem.ApprovedAuthorizationId);
         AssertEqual(approvedItem.Description, billItem.Description);
         AssertEqual(1, billItem.Quantity);
-        AssertEqual(12.50m, bill.TotalValue);
+        AssertEqual(12.50m, bill.TotalValue.Amount);
     }
 
     private static async Task TestBillingRejectsPendingOrDeniedAuthorization()
     {
-        var (authorizationService, billingService) = CreateBillingServices();
+        var context = await CreateServicesWithReferenceDataAsync();
+        var authorizationService = context.AuthorizationService;
+        var billingService = context.BillingService;
 
-        var pendingAuthorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+        var pendingAuthorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(context.BeneficiaryId));
         var pending = await authorizationService.GetAuthorizationStatusAsync(pendingAuthorizationId);
 
         await AssertThrowsAsync<InvalidOperationException>(() =>
             billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
             {
                 AuthorizationId = pendingAuthorizationId,
-                UnitValuesByItemId = pending.Items.ToDictionary(item => item.Id, item => 10m)
+                UnitValuesByItemId = pending.Items.ToDictionary(item => item.Id, item => MoneyDto(10m))
             }));
 
-        var deniedAuthorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+        var deniedAuthorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(context.BeneficiaryId));
         await authorizationService.DenyAuthorizationAsync(
             deniedAuthorizationId,
             GlosaReason.FaltaDeDocumentacao,
@@ -323,15 +375,17 @@ public static class Program
             billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
             {
                 AuthorizationId = deniedAuthorizationId,
-                UnitValuesByItemId = denied.Items.ToDictionary(item => item.Id, item => 10m)
+                UnitValuesByItemId = denied.Items.ToDictionary(item => item.Id, item => MoneyDto(10m))
             }));
     }
 
     private static async Task TestBillingRequiresUnitValueForApprovedItems()
     {
-        var (authorizationService, billingService) = CreateBillingServices();
+        var context = await CreateServicesWithReferenceDataAsync();
+        var authorizationService = context.AuthorizationService;
+        var billingService = context.BillingService;
 
-        var authorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto());
+        var authorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(context.BeneficiaryId));
         await authorizationService.ApproveAuthorizationAsync(authorizationId);
         var status = await authorizationService.GetAuthorizationStatusAsync(authorizationId);
 
@@ -339,15 +393,129 @@ public static class Program
             billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
             {
                 AuthorizationId = authorizationId,
-                UnitValuesByItemId = new Dictionary<Guid, decimal>()
+                UnitValuesByItemId = new Dictionary<Guid, MoneyDto>()
             }));
 
         await AssertThrowsAsync<ArgumentException>(() =>
             billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
             {
                 AuthorizationId = authorizationId,
-                UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => -1m)
+                UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => MoneyDto(-1m))
             }));
+    }
+
+    private static Task TestMoneyOperations()
+    {
+        var first = new Money(10m, "brl");
+        var second = new Money(15m, "BRL");
+
+        AssertEqual(25m, first.Add(second).Amount);
+        AssertEqual("BRL", first.Currency);
+        AssertThrows<InvalidOperationException>(() => first.Add(new Money(1m, "USD")));
+        AssertThrows<ArgumentException>(() => new Money(-1m));
+        AssertThrows<ArgumentException>(() => new Money(1m, ""));
+        return Task.CompletedTask;
+    }
+
+    private static Task TestHospitalBillCloseBlocksChanges()
+    {
+        var bill = new HospitalBill(Guid.NewGuid(), Guid.NewGuid(), "Hospital BemAli");
+        var item = new BillItem(Guid.NewGuid(), Guid.NewGuid(), "Soro", 2, new Money(25m));
+
+        bill.AddItem(item);
+        AssertEqual(50m, bill.TotalValue.Amount);
+
+        bill.Close();
+
+        AssertEqual(HospitalBillStatus.Closed, bill.Status);
+        AssertThrows<InvalidOperationException>(() =>
+            bill.AddItem(new BillItem(Guid.NewGuid(), Guid.NewGuid(), "Dipirona", 1, new Money(10m))));
+        AssertThrows<InvalidOperationException>(() =>
+            bill.ApplyGlosaToItem(item.Id, GlosaReason.FaltaDeDocumentacao, "Documento ausente."));
+        return Task.CompletedTask;
+    }
+
+    private static async Task TestGlosaAppealFlow()
+    {
+        var context = await CreateServicesWithReferenceDataAsync();
+        var authorizationService = context.AuthorizationService;
+        var billingService = context.BillingService;
+
+        var authorizationId = await authorizationService.RequestAuthorizationAsync(CreateAuthorizationDto(context.BeneficiaryId));
+        await authorizationService.ApproveAuthorizationAsync(authorizationId);
+        var status = await authorizationService.GetAuthorizationStatusAsync(authorizationId);
+
+        var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
+        {
+            AuthorizationId = authorizationId,
+            UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => MoneyDto(20m))
+        });
+
+        var bill = await billingService.GetHospitalBillAsync(billId);
+        var itemId = bill.Items.First().Id;
+        var glosaId = await billingService.ApplyGlosaToItemAsync(new ApplyGlosaDto
+        {
+            HospitalBillId = billId,
+            BillItemId = itemId,
+            Reason = GlosaReason.FaltaDeDocumentacao,
+            Details = "Laudo ausente."
+        });
+
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            billingService.ApplyGlosaToItemAsync(new ApplyGlosaDto
+            {
+                HospitalBillId = billId,
+                BillItemId = Guid.NewGuid(),
+                Reason = GlosaReason.FaltaDeDocumentacao,
+                Details = "Item inexistente."
+            }));
+
+        await AssertThrowsAsync<ArgumentException>(() =>
+            billingService.FileGlosaAppealAsync(new FileGlosaAppealDto
+            {
+                HospitalBillId = billId,
+                BillItemId = itemId,
+                GlosaId = glosaId,
+                EvidenceDocuments = new List<EvidenceDto>()
+            }));
+
+        await billingService.FileGlosaAppealAsync(new FileGlosaAppealDto
+        {
+            HospitalBillId = billId,
+            BillItemId = itemId,
+            GlosaId = glosaId,
+            EvidenceDocuments = new List<EvidenceDto>
+            {
+                new()
+                {
+                    DocumentUrl = "https://example.test/laudo.pdf",
+                    Description = "Laudo anexado"
+                }
+            }
+        });
+
+        await AssertThrowsAsync<InvalidOperationException>(() =>
+            billingService.FileGlosaAppealAsync(new FileGlosaAppealDto
+            {
+                HospitalBillId = billId,
+                BillItemId = itemId,
+                GlosaId = glosaId,
+                EvidenceDocuments = new List<EvidenceDto>
+                {
+                    new()
+                    {
+                        DocumentUrl = "https://example.test/laudo-duplicado.pdf",
+                        Description = "Duplicado"
+                    }
+                }
+            }));
+
+        var reloaded = await billingService.GetHospitalBillAsync(billId);
+        var reloadedGlosa = reloaded.Items.SelectMany(item => item.Glosas).Single(glosa => glosa.Id == glosaId);
+
+        AssertTrue(reloadedGlosa.Appeal != null, "A glosa deveria ter recurso administrativo persistido.");
+        AssertEqual(1, reloadedGlosa.Appeal!.EvidenceDocuments.Count);
+        AssertEqual("https://example.test/laudo.pdf", reloadedGlosa.Appeal.EvidenceDocuments.Single().DocumentUrl);
     }
 
     private static async Task TestRepositoriesPersistInSqliteDatabase()
@@ -358,9 +526,20 @@ public static class Program
         {
             var authorizationRepository = new AuthorizationRepository(databasePath);
             var hospitalBillRepository = new HospitalBillRepository(databasePath);
-            var authorizationService = new AuthorizationService(authorizationRepository);
-            var billingService = new BillingService(authorizationRepository, hospitalBillRepository);
-            var dto = CreateAuthorizationDto();
+            var beneficiaryRepository = new BeneficiaryRepository(databasePath);
+            var planRepository = new PlanRepository(databasePath);
+            var procedureRepository = new ProcedureCatalogRepository(databasePath);
+            var beneficiaryId = await SeedReferenceDataAsync(
+                beneficiaryRepository,
+                planRepository,
+                procedureRepository);
+            var authorizationService = CreateAuthorizationService(
+                authorizationRepository,
+                beneficiaryRepository,
+                planRepository,
+                procedureRepository);
+            var billingService = CreateBillingService(authorizationRepository, hospitalBillRepository);
+            var dto = CreateAuthorizationDto(beneficiaryId);
 
             var authorizationId = await authorizationService.RequestAuthorizationAsync(dto);
             await authorizationService.ApproveAuthorizationAsync(authorizationId);
@@ -369,8 +548,10 @@ public static class Program
             var billId = await billingService.CreateHospitalBillFromAuthorizationAsync(new CreateHospitalBillDto
             {
                 AuthorizationId = authorizationId,
-                UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => 25m)
+                UnitValuesByItemId = status.Items.ToDictionary(item => item.Id, item => MoneyDto(25m, "USD"))
             });
+
+            await billingService.CloseHospitalBillAsync(billId);
 
             var reloadedAuthorizationRepository = new AuthorizationRepository(databasePath);
             var reloadedHospitalBillRepository = new HospitalBillRepository(databasePath);
@@ -385,7 +566,10 @@ public static class Program
             AssertTrue(reloadedAuthorization.Items.All(item => item.ApprovedQuantity == item.RequestedQuantity), "As quantidades aprovadas deveriam persistir.");
             AssertEqual(dto.BeneficiaryId, reloadedBill!.BeneficiaryId);
             AssertEqual(2, reloadedBill.Items.Count);
-            AssertEqual(50m, reloadedBill.Items.Sum(item => item.TotalValue));
+            AssertEqual(75m, reloadedBill.TotalValue.Amount);
+            AssertEqual("USD", reloadedBill.TotalValue.Currency);
+            AssertTrue(reloadedBill.Items.All(item => item.UnitValue.Currency == "USD"), "A moeda dos itens deveria persistir.");
+            AssertEqual(HospitalBillStatus.Closed, reloadedBill.Status);
         }
         finally
         {
@@ -393,30 +577,139 @@ public static class Program
         }
     }
 
-    private static (AuthorizationService AuthorizationService, BillingService BillingService) CreateBillingServices()
+    private static async Task<(
+        AuthorizationService AuthorizationService,
+        BillingService BillingService,
+        Guid BeneficiaryId,
+        string DatabasePath)> CreateServicesWithReferenceDataAsync(
+        BeneficiaryStatus status = BeneficiaryStatus.Ativo,
+        DateTime? joinDate = null,
+        int graceDays = 30,
+        int? procedureMinimumAge = 18,
+        int? procedureMaximumAge = 65)
     {
         var databasePath = CreateTestDatabasePath();
         var authorizationRepository = new AuthorizationRepository(databasePath);
         var hospitalBillRepository = new HospitalBillRepository(databasePath);
+        var beneficiaryRepository = new BeneficiaryRepository(databasePath);
+        var planRepository = new PlanRepository(databasePath);
+        var procedureRepository = new ProcedureCatalogRepository(databasePath);
+
+        var beneficiaryId = await SeedReferenceDataAsync(
+            beneficiaryRepository,
+            planRepository,
+            procedureRepository,
+            status,
+            joinDate,
+            graceDays,
+            procedureMinimumAge,
+            procedureMaximumAge);
 
         return (
-            new AuthorizationService(authorizationRepository),
-            new BillingService(authorizationRepository, hospitalBillRepository));
+            CreateAuthorizationService(
+                authorizationRepository,
+                beneficiaryRepository,
+                planRepository,
+                procedureRepository),
+            CreateBillingService(authorizationRepository, hospitalBillRepository),
+            beneficiaryId,
+            databasePath);
     }
 
-    private static AuthorizationRequestDto CreateAuthorizationDto()
+    private static AuthorizationService CreateAuthorizationService(
+        IAuthorizationRepository authorizationRepository,
+        IBeneficiaryRepository beneficiaryRepository,
+        IPlanRepository planRepository,
+        IProcedureCatalogRepository procedureRepository)
+    {
+        return new AuthorizationService(
+            new RequestAuthorizationUseCase(
+                authorizationRepository,
+                beneficiaryRepository,
+                planRepository,
+                procedureRepository,
+                new EligibilityService()),
+            new ApproveAuthorizationUseCase(authorizationRepository),
+            new ApproveAuthorizationPartiallyUseCase(authorizationRepository),
+            new DenyAuthorizationUseCase(authorizationRepository),
+            new RegisterDocumentPendingUseCase(authorizationRepository),
+            new GetAuthorizationStatusUseCase(authorizationRepository));
+    }
+
+    private static BillingService CreateBillingService(
+        IAuthorizationRepository authorizationRepository,
+        IHospitalBillRepository hospitalBillRepository)
+    {
+        return new BillingService(
+            new CreateHospitalBillFromAuthorizationUseCase(authorizationRepository, hospitalBillRepository),
+            new GetHospitalBillUseCase(hospitalBillRepository),
+            new ApplyGlosaToHospitalBillItemUseCase(hospitalBillRepository),
+            new FileGlosaAppealUseCase(hospitalBillRepository),
+            new CloseHospitalBillUseCase(hospitalBillRepository));
+    }
+
+    private static async Task<Guid> SeedReferenceDataAsync(
+        BeneficiaryRepository beneficiaryRepository,
+        PlanRepository planRepository,
+        ProcedureCatalogRepository procedureRepository,
+        BeneficiaryStatus status = BeneficiaryStatus.Ativo,
+        DateTime? joinDate = null,
+        int graceDays = 30,
+        int? procedureMinimumAge = 18,
+        int? procedureMaximumAge = 65)
+    {
+        var planId = Guid.NewGuid();
+        var plan = new Plan(planId, "123456", PlanType.Individual, 0);
+        plan.SetGracePeriod(ProcedureType.ExameSimples, graceDays);
+
+        var beneficiary = new Beneficiary(
+            Guid.NewGuid(),
+            "Maria Silva",
+            DateTime.Today.AddYears(-30),
+            joinDate ?? DateTime.Today.AddYears(-1),
+            planId,
+            status);
+
+        var procedure = new ProcedureCatalogItem(
+            new ProcedureCode("9999"),
+            "Procedimento de teste",
+            ProcedureType.ExameSimples,
+            procedureMinimumAge,
+            procedureMaximumAge);
+
+        await planRepository.AddAsync(plan);
+        await beneficiaryRepository.AddAsync(beneficiary);
+        await procedureRepository.AddAsync(procedure);
+
+        return beneficiary.Id;
+    }
+
+    private static AuthorizationRequestDto CreateAuthorizationDto(Guid beneficiaryId)
     {
         return new AuthorizationRequestDto
         {
-            BeneficiaryId = Guid.NewGuid(),
+            BeneficiaryId = beneficiaryId,
             PlanNumber = "123456",
             ProcedureCode = "9999",
-            ClinicalJustification = "M54.5",
+            CidCode = "M54.5",
             RequestingProfessional = "CRM-12345",
             ExecutingEstablishment = "Hospital BemAli",
             ExpectedDate = DateTime.Today.AddDays(1),
-            MaterialsAndMedicines = new List<string> { "Soro", "Dipirona" },
+            RequestedItems = new List<RequestedItemDto>
+            {
+                new() { Description = "Soro", Quantity = 2, ItemType = "Material" },
+                new() { Description = "Dipirona", Quantity = 1, ItemType = "Medicamento" }
+            },
             IsUrgentOrEmergency = false
+        };
+    }
+
+    private static MoneyDto MoneyDto(decimal amount, string currency = "BRL")
+    {
+        return new MoneyDto
+        {
+            Amount = amount,
+            Currency = currency
         };
     }
 

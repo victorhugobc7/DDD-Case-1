@@ -29,32 +29,58 @@ Na implementação atual, a estrutura principal é:
 
 ```text
 Domain
-  Aggregates
-    Autorizacoes: AuthorizationRequest, RequestedItem
-    Beneficiarios: Beneficiary
-    Planos: Plan
-    Procedimentos: ProcedureCatalogItem
-    Faturamento: HospitalBill, BillItem
-    Auditoria: Glosa, AdministrativeAppeal
-  ValueObjects
-  Enums
-  Factories
-  Services
-  Repositories
+  Authorizations: AuthorizationRequest, RequestedItem, EligibilityService, AuthorizationRequestFactory, IAuthorizationRepository
+  Beneficiaries: Beneficiary, BeneficiaryStatus, IBeneficiaryRepository
+  Plans: Plan, PlanNumber, PlanType, IPlanRepository
+  Procedures: ProcedureCatalogItem, ProcedureCode, CidCode, ProcedureType, IProcedureCatalogRepository
+  Billing: HospitalBill, BillItem, Money, HospitalBillStatus, IHospitalBillRepository
+  Audit: Glosa, AdministrativeAppeal, Evidence, GlosaReason, AppealStatus
+  ProviderNetwork: ProfessionalRegistry
 
 Application
   DTOs
   Interfaces
   Services
-  UseCases
+  UseCases/Authorizations
+  UseCases/Billing
 
 Infra
   Data: HealthInsuranceDatabase
-  Repositories: AuthorizationRepository, HospitalBillRepository
+  Repositories: AuthorizationRepository, HospitalBillRepository, BeneficiaryRepository, PlanRepository, ProcedureCatalogRepository
 ```
 
 ![][image1]
 Figura 1 – Diagrama de classes e relacionamentos do domínio
+
+## **Diagrama executável atual**
+
+O diagrama abaixo representa apenas o código executável atual do recorte v1. Ideias futuras de integração regulatória, ANS ou TISS não fazem parte deste diagrama.
+
+```mermaid
+classDiagram
+    class AuthorizationRequest
+    class RequestedItem
+    class EligibilityService
+    class Beneficiary
+    class Plan
+    class ProcedureCatalogItem
+    class HospitalBill
+    class BillItem
+    class Money
+    class Glosa
+    class AdministrativeAppeal
+    class Evidence
+
+    AuthorizationRequest "1" --> "*" RequestedItem
+    EligibilityService ..> Beneficiary
+    EligibilityService ..> Plan
+    EligibilityService ..> ProcedureCatalogItem
+    HospitalBill "1" --> "*" BillItem
+    BillItem --> Money
+    BillItem "1" --> "*" Glosa
+    Glosa "1" --> "0..1" AdministrativeAppeal
+    AdministrativeAppeal "1" --> "*" Evidence
+```
 
 # **DECISÕES DE MODELAGEM**
 
@@ -108,11 +134,11 @@ RequestedItem não foi modelado como Aggregate Root porque não faz sentido apro
 ### **HospitalBill concentra faturamento e glosas**
 
 HospitalBill representa a conta hospitalar como unidade principal de faturamento. Seus BillItem podem receber Glosa, e uma Glosa pode receber um AdministrativeAppeal.
-Essa cadeia fica próxima no modelo porque as regras de glosa e recurso são consequência direta da cobrança apresentada. Na persistência atual, HospitalBillRepository salva HospitalBill, BillItem e Glosa; AdministrativeAppeal e Evidence ainda não possuem tabelas próprias.
+Essa cadeia fica próxima no modelo porque as regras de glosa e recurso são consequência direta da cobrança apresentada. Na persistência atual, HospitalBillRepository salva HospitalBill, BillItem, Glosa, AdministrativeAppeal e Evidence, mantendo glosas e recursos dentro do limite transacional da conta hospitalar.
 
-### **Elegibilidade ficou fora da autorização**
+### **Elegibilidade é validada antes da criação da autorização**
 
-A autorização não decide sozinha se o beneficiário está ativo, se pertence ao plano, se cumpriu carência ou se possui idade permitida. Essas regras cruzam três conceitos: beneficiário, plano e procedimento. Por isso foram colocadas em EligibilityService.
+A autorização não decide sozinha se o beneficiário está ativo, se pertence ao plano, se cumpriu carência ou se possui idade permitida. Essas regras cruzam três conceitos: beneficiário, plano e procedimento. Por isso foram colocadas em EligibilityService e são chamadas por `RequestAuthorizationUseCase` antes da criação da autorização.
 
 ### **Application Service não concentra regra de domínio**
 
@@ -126,7 +152,7 @@ Isso mantém o domínio isolado e facilita testar as regras sem depender de infr
 | Usar Guid como identidade principal | Simples, único e independente de banco de dados | Não expressa números de negócio como protocolo ou lote  |
 | Representar plano na autorização por PlanNumber | Evita carregar Aggregate de plano dentro da autorização | A consistência entre plano e beneficiário depende do serviço de elegibilidade |
 | Criar  EligibilityService | Regra fica explícita e sem acoplamento artificial | Exige orquestração externa para fornecer beneficiário, plano e procedimento |
-| Repository em SQLite | Permite demonstrar persistência real local e recarregamento de aggregates | Ainda é uma persistência simples, sem migrations formais e sem modelar todo o ciclo de auditoria |
+| Repository em SQLite | Permite demonstrar persistência real local e recarregamento de aggregates | Ainda é uma persistência simples, sem migrations formais |
 | Separar DTOs no Application | Evita vazar entidades de domínio para entrada e saída da aplicação | Exige mapeamento entre DTO e domínio  |
 
 ## **5\. Isolamento do domínio**
@@ -177,6 +203,7 @@ Value Objects foram usados para conceitos que não precisam de identidade própr
 | Código CID | CidCode | Representa a justificativa clínica por código padronizado. | Não pode ser vazio e deve seguir o formato CID, como M54.5 ou S72.0. |
 | Registro profissional | ProfessionalRegistry | O registro é um dado de rastreabilidade, não uma entidade completa de profissional. | Não pode ser vazio. |
 | Evidência de recurso | Evidence | Documento usado como prova em um recurso; o valor do documento e sua descrição são suficientes. | URL do documento não pode ser vazia. |
+| Dinheiro | Money | Valor monetário é definido por montante e moeda, sem identidade própria. | Valor não pode ser negativo e somas exigem a mesma moeda. |
 
 ## **3\. Enums de domínio**
 
@@ -188,6 +215,7 @@ Enums foram usados para estados e classificações fechadas, onde a lista de op�
 | BeneficiaryStatus | Status do beneficiário: ativo ou inativo.  |
 | GlosaReason | Motivos de glosa e negativa.  |
 | AppealStatus | Situação do recurso administrativo.  |
+| HospitalBillStatus | Situação da conta hospitalar: aberta ou fechada. |
 | PlanType | Tipo do plano.  |
 | ProcedureType | Tipo do procedimento para regras de carência e elegibilidade. |
 
@@ -206,11 +234,11 @@ No projeto, os Aggregates foram definidos a partir dos comportamentos de negóci
 | Aggregate | Aggregate Root | Entidades internas | Repositories relacionados |
 | :---- | :---- | :---- | :---- |
 | Autorização de procedimento | AuthorizationRequest | RequestedItem | IAuthorizationRepository |
-| Beneficiário | Beneficiary | Nenhuma | Não definido nesta versão  |
-| Plano | Plan | Regras internas de carência | Não definido nesta versão  |
-| Catálogo de procedimento | ProcedureCatalogItem | Nenhuma | Não definido nesta versão  |
+| Beneficiário | Beneficiary | Nenhuma | IBeneficiaryRepository |
+| Plano | Plan | Regras internas de carência | IPlanRepository |
+| Catálogo de procedimento | ProcedureCatalogItem | Nenhuma | IProcedureCatalogRepository |
 | Conta hospitalar | HospitalBill | BillItem e Glosa | IHospitalBillRepository |
-| Auditoria da glosa | Glosa | AdministrativeAppeal | Sem repository próprio nesta versão |
+| Auditoria da glosa | Glosa | AdministrativeAppeal | Sem repository próprio; persiste pelo HospitalBillRepository |
 
 ## **2\. Aggregate: Autorização de procedimento**
 
@@ -311,15 +339,15 @@ HospitalBill
 
 ### **Entidades internas**
 
-BillItem e Glosa.
+BillItem, Glosa e AdministrativeAppeal.
 
-AdministrativeAppeal é uma entidade ligada à Glosa. Ela existe no domínio, mas ainda não possui persistência própria no schema SQLite atual.
+AdministrativeAppeal é uma entidade ligada à Glosa. Ela continua sem repositório próprio, mas é persistida pelo `HospitalBillRepository` junto da conta hospitalar, da glosa e das evidências.
 
 ### **Motivo da escolha**
 
 Conta hospitalar é a unidade de faturamento. Seus itens e glosas fazem sentido como parte dessa cobrança. A glosa nasce sobre um item faturado, e o recurso administrativo nasce sobre uma glosa específica.
 
-Na implementação atual, `HospitalBillRepository` persiste `HospitalBill`, `BillItem` e `Glosa`. O recurso administrativo e suas evidências existem como modelo de domínio, mas ainda não são persistidos em tabelas próprias.
+Na implementação atual, `HospitalBillRepository` persiste `HospitalBill`, `BillItem`, `Glosa`, `AdministrativeAppeal` e `Evidence`.
 
 ### **Regras protegidas**
 
@@ -329,7 +357,9 @@ Na implementação atual, `HospitalBillRepository` persiste `HospitalBill`, `Bil
 | Item de conta não pode ser nulo. | HospitalBill.AddItem |
 | Item faturado deve estar ligado a uma autorização aprovada. | Construtor de BillItem |
 | Quantidade do item deve ser maior que zero. | Construtor de BillItem |
-| Valor unitário não pode ser negativo. | Construtor de BillItem |
+| Valor unitário não pode ser negativo. | Money e construtor de BillItem |
+| Conta fechada não pode receber novos itens, glosas ou recursos. | HospitalBill.EnsureOpen |
+| Glosa e recurso administrativo devem ser aplicados pela conta hospitalar. | HospitalBill.ApplyGlosaToItem e HospitalBill.FileAppeal |
 | Glosa exige justificativa. | BillItem.ApplyGlosa e construtor de Glosa |
 | Glosa de auditoria posterior é marcada como clawback. | BillItem.ApplyClawbackAuditGlosa |
 | Cada glosa pode ter apenas um recurso ativo associado. | Glosa.FileAppeal |
@@ -380,7 +410,7 @@ O projeto está dividido por camadas e, dentro do domínio, por responsabilidade
 
 ### **AuthorizationRequestFactory**
 
-Local: DDD-Case-1/Domain/Factories/Autorizacoes/AuthorizationRequestFactory.cs
+Local: DDD-Case-1/Domain/Authorizations/AuthorizationRequestFactory.cs
 Foi necessária porque a criação de uma autorização envolve uma regra de domínio especial:
 
 * receber a composição já formada por `RequestAuthorizationUseCase`;
@@ -390,7 +420,7 @@ Foi necessária porque a criação de uma autorização envolve uma regra de dom
 
 Essa lógica não ficou no AuthorizationService porque é regra de criação do domínio. Também não ficou apenas no construtor porque a Factory precisa aplicar a política de urgência/emergência logo após criar a autorização.
 
-A montagem dos `RequestedItem` e a conversão de strings do DTO para `PlanNumber`, `ProcedureCode`, `CidCode` e `ProfessionalRegistry` acontecem em `Application/UseCases/Autorizacoes/RequestAuthorizationUseCase.cs`.
+A montagem dos `RequestedItem` e a conversão de strings do DTO para `PlanNumber`, `ProcedureCode`, `CidCode` e `ProfessionalRegistry` acontecem em `Application/UseCases/Authorizations/RequestAuthorizationUseCase.cs`.
 
 ### **Factories não criadas**
 
@@ -401,7 +431,7 @@ Essa decisão evita abstrações desnecessárias. Uma Factory deve surgir quando
 
 ### **EligibilityService**
 
-Local: DDD-Case-1/Domain/Services/Autorizacoes/EligibilityService.cs
+Local: DDD-Case-1/Domain/Authorizations/EligibilityService.cs
 Foi criado porque a regra de elegibilidade depende de três conceitos:
 
 * Beneficiary, para status, plano vinculado, data de adesão e idade;
@@ -434,7 +464,7 @@ AuthorizationService é um serviço de aplicação, não um Domain Service. Ele 
 
 Ele não decide as regras principais. A decisão é delegada para métodos da Entity AuthorizationRequest ou para a Factory.
 
-Internamente, `AuthorizationService` compõe casos de uso específicos, como `RequestAuthorizationUseCase`, `ApproveAuthorizationUseCase`, `ApproveAuthorizationPartiallyUseCase`, `DenyAuthorizationUseCase`, `RegisterDocumentPendingUseCase` e `GetAuthorizationStatusUseCase`.
+Internamente, `AuthorizationService` compõe casos de uso específicos, como `RequestAuthorizationUseCase`, `ApproveAuthorizationUseCase`, `ApproveAuthorizationPartiallyUseCase`, `DenyAuthorizationUseCase`, `RegisterDocumentPendingUseCase` e `GetAuthorizationStatusUseCase`. No fluxo de solicitação, `RequestAuthorizationUseCase` carrega beneficiário, plano e procedimento por repositórios de leitura e chama `EligibilityService.ValidateEligibility(...)`.
 
 ### **BillingService**
 
@@ -443,14 +473,17 @@ BillingService coordena os casos de uso de faturamento:
 
 * criar uma conta hospitalar a partir de uma autorização aprovada;
 * consultar uma conta hospitalar.
+* aplicar glosa em item;
+* registrar recurso administrativo de glosa;
+* fechar a conta hospitalar.
 
-Ele usa `CreateHospitalBillFromAuthorizationUseCase` para buscar a autorização, validar se ela está aprovada, selecionar apenas itens com quantidade aprovada, criar `HospitalBill` e persistir a conta por `IHospitalBillRepository`.
+Ele usa casos de uso específicos para buscar agregados, chamar operações de domínio em `HospitalBill` e persistir a conta por `IHospitalBillRepository`.
 
 ## **5\. Repositories definidos**
 
 ### **IAuthorizationRepository**
 
-Local: DDD-Case-1/Domain/Repositories/Autorizacoes/IAuthorizationRepository.cs
+Local: DDD-Case-1/Domain/Authorizations/IAuthorizationRepository.cs
 Repository da Aggregate Root AuthorizationRequest.
 Operações:
 
@@ -466,14 +499,25 @@ Implementação atual:
 * remove e reinsere `authorization_requested_items` dentro de transação;
 * reconstitui a Aggregate Root com `AuthorizationRequest.Restore(...)`.
 
+### **Repositórios de dados de referência**
+
+Locais:
+
+* DDD-Case-1/Domain/Beneficiaries/IBeneficiaryRepository.cs;
+* DDD-Case-1/Domain/Plans/IPlanRepository.cs;
+* DDD-Case-1/Domain/Procedures/IProcedureCatalogRepository.cs.
+
+Esses contratos permitem que `RequestAuthorizationUseCase` carregue os dados necessários para a elegibilidade sem acoplar o domínio ao SQLite. As implementações ficam em `Infra/Repositories`.
+
 ### **IHospitalBillRepository**
 
-Local: DDD-Case-1/Domain/Repositories/Faturamento/IHospitalBillRepository.cs
+Local: DDD-Case-1/Domain/Billing/IHospitalBillRepository.cs
 Repository da Aggregate Root HospitalBill.
 Operações:
 
 * GetByIdAsync;
-* AddAsync.
+* AddAsync;
+* UpdateAsync.
 
 Implementação atual:
 
@@ -482,9 +526,9 @@ Implementação atual:
 * salva `hospital_bills`;
 * salva `hospital_bill_items`;
 * salva `hospital_bill_item_glosas`;
-* reconstitui `HospitalBill`, `BillItem` e `Glosa`.
-
-O schema atual ainda não persiste `AdministrativeAppeal` nem `Evidence`.
+* salva `administrative_appeals`;
+* salva `administrative_appeal_evidence`;
+* reconstitui `HospitalBill`, `BillItem`, `Glosa`, `AdministrativeAppeal` e `Evidence`.
 
 ## **6\. Isolamento de responsabilidade**
 
@@ -499,52 +543,72 @@ O schema atual ainda não persiste `AdministrativeAppeal` nem `Evidence`.
 
 # **PRINCIPAIS REGRAS DE NEGÓCIO E ONDE FORAM IMPLEMENTADAS**
 
-## **1\. Matriz de regras**
+## **1\. Matriz de rastreabilidade atual**
+
+| Regra | Classe e método principal | Teste executável | Status |
+| :---- | :---- | :---- | :---- |
+| Autorização sem itens é inválida. | `AuthorizationRequest` construtor | `Tests/Program.cs` - `solicitação sem itens é inválida` | Implementada e testada |
+| Item solicitado exige quantidade positiva. | `RequestedItem` construtor | `Tests/Program.cs` - `quantidade solicitada deve ser maior que zero` | Implementada e testada |
+| Aprovação parcial não aceita item externo à solicitação. | `AuthorizationRequest.ApprovePartially` | `Tests/Program.cs` - `aprovação parcial rejeita quantidade acima da solicitada` | Implementada e testada |
+| Negativa exige justificativa. | `AuthorizationRequest.Deny` | `Tests/Program.cs` - `negativa exige justificativa` | Implementada e testada |
+| Urgência/emergência aprova integralmente e exige auditoria posterior. | `AuthorizationRequestFactory.Create` e `AuthorizationRequest.SetAsEmergencyException` | `Tests/Program.cs` - `urgência aprova e marca auditoria posterior` | Implementada e testada |
+| Solicitação comum passa por elegibilidade antes de ser criada. | `RequestAuthorizationUseCase.ExecuteAsync` e `EligibilityService.ValidateEligibility` | `Tests/Program.cs` - `application exige elegibilidade na solicitação` | Integrada e testada |
+| Value Objects rejeitam entradas inválidas. | `PlanNumber`, `ProcedureCode`, `CidCode`, `ProfessionalRegistry`, `Evidence` | `Tests/Program.cs` - `value objects rejeitam valores inválidos` | Implementada e testada |
+| DTO de autorização preserva quantidade solicitada. | `RequestAuthorizationUseCase.CreateRequestedItems` | `Tests/Program.cs` - `faturamento cria conta para autorização aprovada integralmente` | Integrada e testada |
+| Conta hospitalar só nasce a partir de autorização aprovada. | `CreateHospitalBillFromAuthorizationUseCase.ExecuteAsync` | `Tests/Program.cs` - `faturamento cria conta para autorização aprovada integralmente` | Integrada e testada |
+| Conta hospitalar calcula total no domínio. | `HospitalBill.TotalValue` e `BillItem.TotalValue` | `Tests/Program.cs` - `hospital bill calcula total e fecha conta` | Implementada e testada |
+| Conta fechada não aceita alterações posteriores. | `HospitalBill.EnsureOpen` | `Tests/Program.cs` - `hospital bill calcula total e fecha conta` | Implementada e testada |
+| Glosa deve passar pela conta hospitalar. | `HospitalBill.ApplyGlosaToItem` | `Tests/Program.cs` - `glosa passa pela conta hospitalar e aceita recurso` | Integrada e testada |
+| Recurso administrativo exige evidência e não duplica para mesma glosa. | `HospitalBill.FileAppeal` e `Glosa.FileAppeal` | `Tests/Program.cs` - `administrative appeal valida ids e evidências`; `glosa passa pela conta hospitalar e aceita recurso` | Integrada e testada |
+| `Money` soma apenas mesma moeda. | `Money.Add` | `Tests/Program.cs` - `money soma valores e rejeita moedas diferentes` | Implementada e testada |
+| Repositórios SQLite reconstituem agregados. | `AuthorizationRepository`, `HospitalBillRepository` e repositórios de referência | `Tests/Program.cs` - `repositories persistem dados em SQLite` | Integrada e testada |
+
+## **2\. Matriz detalhada de implementação**
 
 | ID | Regra de negócio | Implementação |
 | :---- | :---- | :---- |
-| RN-01 | Solicitação de autorização deve ter id, beneficiário, plano, procedimento, CID, profissional, estabelecimento e ao menos um item. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, construtor |
-| RN-02 | Toda solicitação de autorização comum nasce com status Pendente. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, construtor |
-| RN-03 | Apenas solicitações pendentes podem receber decisão. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, EnsurePending |
-| RN-04 | Aprovação integral deve aprovar todos os itens solicitados. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, ApproveFully |
-| RN-05 | Aprovação parcial deve informar ao menos um item autorizado. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, ApprovePartially |
-| RN-06 | Aprovação parcial não pode conter item que não pertence à solicitação. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, ApprovePartially |
-| RN-07 | Quantidade aprovada não pode ser negativa nem maior que a quantidade solicitada. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, ApprovePartially; Domain/Aggregates/Autorizacoes/RequestedItem.cs, ApprovePartially |
-| RN-08 | Aprovação parcial deve autorizar ao menos uma quantidade maior que zero. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, ApprovePartially |
-| RN-09 | Item não informado na aprovação parcial deve ser negado. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, ApprovePartially |
-| RN-10 | Negativa deve ter justificativa e deve negar todos os itens. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, Deny |
-| RN-11 | Pendência documental deve informar quais documentos faltam. | Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, RegisterDocumentPending |
-| RN-12 | Urgência/emergência deve aprovar integralmente e exigir auditoria posterior. | Domain/Factories/Autorizacoes/AuthorizationRequestFactory.cs, Create; Domain/Aggregates/Autorizacoes/AuthorizationRequest.cs, SetAsEmergencyException |
-| RN-13 | Item solicitado deve ter descrição e quantidade maior que zero. | Domain/Aggregates/Autorizacoes/RequestedItem.cs, construtor |
-| RN-14 | Beneficiário deve ter id, nome, data de nascimento válida e plano vinculado. | Domain/Aggregates/Beneficiarios/Beneficiary.cs, construtor |
-| RN-15 | Beneficiário não pode ter data de nascimento futura. | Domain/Aggregates/Beneficiarios/Beneficiary.cs, construtor |
-| RN-16 | Alteração de plano exige id de plano válido. | Domain/Aggregates/Beneficiarios/Beneficiary.cs, ChangePlan |
-| RN-17 | Beneficiário inativo não pode ter autorização aprovada por elegibilidade. | Domain/Services/Autorizacoes/EligibilityService.cs, ValidateEligibility |
-| RN-18 | Beneficiário precisa pertencer ao plano informado. | Domain/Services/Autorizacoes/EligibilityService.cs, ValidateEligibility |
-| RN-19 | Beneficiário precisa cumprir carência do plano para o tipo de procedimento. | Domain/Services/Autorizacoes/EligibilityService.cs, ValidateEligibility; Domain/Aggregates/Planos/Plan.cs, IsGracePeriodFulfilled |
-| RN-20 | Beneficiário precisa ter idade permitida para o procedimento. | Domain/Services/Autorizacoes/EligibilityService.cs, ValidateEligibility; Domain/Aggregates/Procedimentos/ProcedureCatalogItem.cs, IsAgePermitted |
-| RN-21 | Plano deve ter id e número válidos. | Domain/Aggregates/Planos/Plan.cs, construtor |
-| RN-22 | Percentual de coparticipação deve estar entre 0 e 100\. | Domain/Aggregates/Planos/Plan.cs, construtor |
-| RN-23 | Carência do plano não pode ser negativa. | Domain/Aggregates/Planos/Plan.cs, SetGracePeriod |
-| RN-24 | Solicitação feita antes da adesão não cumpre carência. | Domain/Aggregates/Planos/Plan.cs, IsGracePeriodFulfilled |
-| RN-25 | Procedimento deve ter código, descrição e faixa etária coerente. | Domain/Aggregates/Procedimentos/ProcedureCatalogItem.cs, construtor |
-| RN-26 | Código CID deve seguir formato válido. | Domain/ValueObjects/Procedimentos/CidCode.cs, construtor |
-| RN-27 | Número do plano, código do procedimento e registro profissional não podem ser vazios. | Domain/ValueObjects/Planos/PlanNumber.cs; Domain/ValueObjects/Procedimentos/ProcedureCode.cs; Domain/ValueObjects/RedeCredenciada/ProfessionalRegistry.cs |
-| RN-28 | Conta hospitalar deve ter id, beneficiário e estabelecimento válidos. | Domain/Aggregates/Faturamento/HospitalBill.cs, construtor |
-| RN-29 | Item de conta deve estar ligado a uma autorização aprovada válida. | Domain/Aggregates/Faturamento/BillItem.cs, construtor |
-| RN-30 | Item de conta deve ter descrição, quantidade positiva e valor unitário não negativo. | Domain/Aggregates/Faturamento/BillItem.cs, construtor |
-| RN-31 | Total do item de conta é quantidade multiplicada pelo valor unitário. | Domain/Aggregates/Faturamento/BillItem.cs, propriedade TotalValue |
-| RN-32 | Glosa deve possuir justificativa. | Domain/Aggregates/Faturamento/BillItem.cs, ApplyGlosa; Domain/Aggregates/Auditoria/Glosa.cs, construtor |
-| RN-33 | Glosa aplicada por auditoria posterior deve ser marcada como clawback. | Domain/Aggregates/Faturamento/BillItem.cs, ApplyClawbackAuditGlosa |
-| RN-34 | Cada glosa pode ter apenas um recurso ativo associado. | Domain/Aggregates/Auditoria/Glosa.cs, FileAppeal |
-| RN-35 | Recurso administrativo deve conter pelo menos uma evidência. | Domain/Aggregates/Auditoria/AdministrativeAppeal.cs, construtor |
-| RN-36 | Recurso administrativo só pode ser processado enquanto estiver em análise. | Domain/Aggregates/Auditoria/AdministrativeAppeal.cs, MaintainGlosa e RevertGlosa |
-| RN-37 | Serviço de aplicação deve carregar Aggregate, executar método de domínio e persistir alteração. | Application/Services/AuthorizationService.cs; Application/UseCases/Autorizacoes |
-| RN-38 | Faturamento deve criar conta apenas a partir de autorização aprovada e somente com itens aprovados. | Application/UseCases/Faturamento/CreateHospitalBillFromAuthorizationUseCase.cs |
-| RN-39 | Repository de autorização deve persistir a Aggregate Root AuthorizationRequest. | Domain/Repositories/Autorizacoes/IAuthorizationRepository.cs; Infra/Repositories/AuthorizationRepository.cs |
-| RN-40 | Repository de conta hospitalar deve persistir HospitalBill, BillItem e Glosa. | Domain/Repositories/Faturamento/IHospitalBillRepository.cs; Infra/Repositories/HospitalBillRepository.cs |
+| RN-01 | Solicitação de autorização deve ter id, beneficiário, plano, procedimento, CID, profissional, estabelecimento e ao menos um item. | Domain/Authorizations/AuthorizationRequest.cs, construtor |
+| RN-02 | Toda solicitação de autorização comum nasce com status Pendente. | Domain/Authorizations/AuthorizationRequest.cs, construtor |
+| RN-03 | Apenas solicitações pendentes podem receber decisão. | Domain/Authorizations/AuthorizationRequest.cs, EnsurePending |
+| RN-04 | Aprovação integral deve aprovar todos os itens solicitados. | Domain/Authorizations/AuthorizationRequest.cs, ApproveFully |
+| RN-05 | Aprovação parcial deve informar ao menos um item autorizado. | Domain/Authorizations/AuthorizationRequest.cs, ApprovePartially |
+| RN-06 | Aprovação parcial não pode conter item que não pertence à solicitação. | Domain/Authorizations/AuthorizationRequest.cs, ApprovePartially |
+| RN-07 | Quantidade aprovada não pode ser negativa nem maior que a quantidade solicitada. | Domain/Authorizations/AuthorizationRequest.cs, ApprovePartially; Domain/Authorizations/RequestedItem.cs, ApprovePartially |
+| RN-08 | Aprovação parcial deve autorizar ao menos uma quantidade maior que zero. | Domain/Authorizations/AuthorizationRequest.cs, ApprovePartially |
+| RN-09 | Item não informado na aprovação parcial deve ser negado. | Domain/Authorizations/AuthorizationRequest.cs, ApprovePartially |
+| RN-10 | Negativa deve ter justificativa e deve negar todos os itens. | Domain/Authorizations/AuthorizationRequest.cs, Deny |
+| RN-11 | Pendência documental deve informar quais documentos faltam. | Domain/Authorizations/AuthorizationRequest.cs, RegisterDocumentPending |
+| RN-12 | Urgência/emergência deve aprovar integralmente e exigir auditoria posterior. | Domain/Authorizations/AuthorizationRequestFactory.cs, Create; Domain/Authorizations/AuthorizationRequest.cs, SetAsEmergencyException |
+| RN-13 | Item solicitado deve ter descrição e quantidade maior que zero. | Domain/Authorizations/RequestedItem.cs, construtor |
+| RN-14 | Beneficiário deve ter id, nome, data de nascimento válida e plano vinculado. | Domain/Beneficiaries/Beneficiary.cs, construtor |
+| RN-15 | Beneficiário não pode ter data de nascimento futura. | Domain/Beneficiaries/Beneficiary.cs, construtor |
+| RN-16 | Alteração de plano exige id de plano válido. | Domain/Beneficiaries/Beneficiary.cs, ChangePlan |
+| RN-17 | Beneficiário inativo não pode ter autorização aprovada por elegibilidade. | Domain/Authorizations/EligibilityService.cs, ValidateEligibility |
+| RN-18 | Beneficiário precisa pertencer ao plano informado. | Domain/Authorizations/EligibilityService.cs, ValidateEligibility |
+| RN-19 | Beneficiário precisa cumprir carência do plano para o tipo de procedimento. | Domain/Authorizations/EligibilityService.cs, ValidateEligibility; Domain/Plans/Plan.cs, IsGracePeriodFulfilled |
+| RN-20 | Beneficiário precisa ter idade permitida para o procedimento. | Domain/Authorizations/EligibilityService.cs, ValidateEligibility; Domain/Procedures/ProcedureCatalogItem.cs, IsAgePermitted |
+| RN-21 | Plano deve ter id e número válidos. | Domain/Plans/Plan.cs, construtor |
+| RN-22 | Percentual de coparticipação deve estar entre 0 e 100\. | Domain/Plans/Plan.cs, construtor |
+| RN-23 | Carência do plano não pode ser negativa. | Domain/Plans/Plan.cs, SetGracePeriod |
+| RN-24 | Solicitação feita antes da adesão não cumpre carência. | Domain/Plans/Plan.cs, IsGracePeriodFulfilled |
+| RN-25 | Procedimento deve ter código, descrição e faixa etária coerente. | Domain/Procedures/ProcedureCatalogItem.cs, construtor |
+| RN-26 | Código CID deve seguir formato válido. | Domain/Procedures/CidCode.cs, construtor |
+| RN-27 | Número do plano, código do procedimento e registro profissional não podem ser vazios. | Domain/Plans/PlanNumber.cs; Domain/Procedures/ProcedureCode.cs; Domain/ProviderNetwork/ProfessionalRegistry.cs |
+| RN-28 | Conta hospitalar deve ter id, beneficiário e estabelecimento válidos. | Domain/Billing/HospitalBill.cs, construtor |
+| RN-29 | Item de conta deve estar ligado a uma autorização aprovada válida. | Domain/Billing/BillItem.cs, construtor |
+| RN-30 | Item de conta deve ter descrição, quantidade positiva e valor unitário não negativo. | Domain/Billing/BillItem.cs, construtor |
+| RN-31 | Total do item de conta é quantidade multiplicada pelo valor unitário. | Domain/Billing/BillItem.cs, propriedade TotalValue |
+| RN-32 | Glosa deve possuir justificativa. | Domain/Billing/BillItem.cs, ApplyGlosa; Domain/Audit/Glosa.cs, construtor |
+| RN-33 | Glosa aplicada por auditoria posterior deve ser marcada como clawback. | Domain/Billing/BillItem.cs, ApplyClawbackAuditGlosa |
+| RN-34 | Cada glosa pode ter apenas um recurso ativo associado. | Domain/Audit/Glosa.cs, FileAppeal |
+| RN-35 | Recurso administrativo deve conter pelo menos uma evidência. | Domain/Audit/AdministrativeAppeal.cs, construtor |
+| RN-36 | Recurso administrativo só pode ser processado enquanto estiver em análise. | Domain/Audit/AdministrativeAppeal.cs, MaintainGlosa e RevertGlosa |
+| RN-37 | Serviço de aplicação deve carregar Aggregate, executar método de domínio e persistir alteração. | Application/Services/AuthorizationService.cs; Application/UseCases/Authorizations |
+| RN-38 | Faturamento deve criar conta apenas a partir de autorização aprovada e somente com itens aprovados. | Application/UseCases/Billing/CreateHospitalBillFromAuthorizationUseCase.cs |
+| RN-39 | Repository de autorização deve persistir a Aggregate Root AuthorizationRequest. | Domain/Authorizations/IAuthorizationRepository.cs; Infra/Repositories/AuthorizationRepository.cs |
+| RN-40 | Repository de conta hospitalar deve persistir HospitalBill, BillItem, Glosa, AdministrativeAppeal e Evidence. | Domain/Billing/IHospitalBillRepository.cs; Infra/Repositories/HospitalBillRepository.cs |
 
-## **2\. Onde estão as regras principais**
+## **3\. Onde estão as regras principais**
 
 As regras principais estão no projeto Domain, principalmente em:
 
@@ -556,13 +620,13 @@ As regras principais estão no projeto Domain, principalmente em:
 * HospitalBill, BillItem, Glosa e AdministrativeAppeal: faturamento, glosa, auditoria posterior e recurso;
 * Value Objects: validações de dados com significado de negócio.
 
-## **3\. Onde as regras não estão**
+## **4\. Onde as regras não estão**
 
 As principais regras de negócio não estão em Infra nem em UI.
 A Infra implementa persistência SQLite e reconstitui aggregates a partir das tabelas. UI apenas demonstra o fluxo. Application coordena casos de uso, mas delega as decisões internas relevantes ao domínio.
 Essa separação reforça o isolamento do domínio e evita que regras importantes fiquem espalhadas por camadas técnicas.
 
-## **4\. Regras cobertas por testes**
+## **5\. Regras cobertas por testes**
 
 Os testes em DDD-Case-1/Tests/Program.cs cobrem principalmente:
 
@@ -579,11 +643,19 @@ Os testes em DDD-Case-1/Tests/Program.cs cobrem principalmente:
 * elegibilidade por beneficiário inativo;
 * elegibilidade em cenário válido;
 * fluxo do AuthorizationService;
+* bloqueio de autorização inelegível no fluxo de aplicação;
+* Value Objects com entradas inválidas;
+* DTO de autorização com quantidade maior que 1;
+* `Money` com soma válida e moeda divergente inválida;
 * criação de conta hospitalar para autorização aprovada integralmente;
 * faturamento parcial usando apenas itens aprovados;
 * rejeição de faturamento para autorização pendente ou negada;
 * exigência de valor unitário válido por item aprovado;
-* persistência de autorização e conta hospitalar em SQLite.
+* total e fechamento de conta hospitalar;
+* bloqueio de alterações após fechamento;
+* aplicação de glosa pela Aggregate Root;
+* recurso administrativo com evidência;
+* persistência de autorização, dados de referência, conta hospitalar, glosa e recurso em SQLite.
 
 Isso mostra que as regras centrais do recorte de autorização, elegibilidade, faturamento e persistência foram validadas em nível de domínio, aplicação e infraestrutura.
 
