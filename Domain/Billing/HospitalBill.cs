@@ -55,6 +55,8 @@ public class HospitalBill
 
         if (item == null)
             throw new ArgumentNullException(nameof(item));
+        if (_items.Any() && _items[0].UnitValue.Currency != item.UnitValue.Currency)
+            throw new InvalidOperationException("Não é possível adicionar itens com moedas diferentes na mesma conta hospitalar.");
 
         _items.Add(item);
     }

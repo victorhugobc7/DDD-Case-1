@@ -424,6 +424,8 @@ public static class Program
 
         bill.AddItem(item);
         AssertEqual(50m, bill.TotalValue.Amount);
+        AssertThrows<InvalidOperationException>(() =>
+            bill.AddItem(new BillItem(Guid.NewGuid(), Guid.NewGuid(), "Medicamento em dólar", 1, new Money(10m, "USD"))));
 
         bill.Close();
 
