@@ -1,0 +1,92 @@
+@page
+@model WebUI.Pages.Authorizations.DetailsModel
+@{
+    ViewData["Title"] = "Detalhes da autorizacao";
+}
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Autorizacao</p>
+        <h1>@Model.Authorization.Id</h1>
+    </div>
+    <span class="badge">@Model.Authorization.Status</span>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert">@Model.ErrorMessage</div>
+}
+
+<section class="panel">
+    <dl class="summary-grid">
+        <div>
+            <dt>Status</dt>
+            <dd>@Model.Authorization.Status</dd>
+        </div>
+        <div>
+            <dt>Auditoria posterior</dt>
+            <dd>@(Model.Authorization.RequiresPostPaymentAudit ? "Sim" : "Nao")</dd>
+        </div>
+        <div>
+            <dt>Motivo de negativa</dt>
+            <dd>@(Model.Authorization.DenialReason ?? "-")</dd>
+        </div>
+        <div>
+            <dt>Pendencia documental</dt>
+            <dd>@(Model.Authorization.PendingReason ?? "-")</dd>
+        </div>
+    </dl>
+</section>
+
+<section class="panel">
+    <h2>Itens</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Descricao</th>
+                <th>Solicitado</th>
+                <th>Aprovado</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model.Authorization.Items)
+        {
+            <tr>
+                <td>@item.Description</td>
+                <td>@item.RequestedQuantity</td>
+                <td>@item.ApprovedQuantity</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>
+
+@if (Model.Authorization.Status == AuthorizationStatus.Pendente)
+{
+    <form method="post" asp-page-handler="ApprovePartial" class="panel">
+        <input type="hidden" asp-for="AuthorizationId" value="@Model.Authorization.Id" />
+        <h2>Aprovacao parcial</h2>
+        <div class="items-grid">
+        @foreach (var item in Model.Authorization.Items)
+        {
+            <label>
+                @item.Description
+                <input name="ApprovedQuantities[@item.Id]" type="number" min="0" max="@item.RequestedQuantity" value="@(item == Model.Authorization.Items.First() ? 1 : 0)" />
+            </label>
+        }
+        </div>
+        <div class="actions">
+            <button type="submit">Aprovar parcialmente</button>
+        </div>
+    </form>
+}
+else if (Model.Authorization.Items.Any(item => item.ApprovedQuantity > 0))
+{
+    <div class="actions">
+        <a class="button" asp-page="/Billing/Create" asp-route-authorizationId="@Model.Authorization.Id">Gerar conta hospitalar</a>
+    </div>
+}
+
+<div class="actions secondary-actions">
+    <a asp-page="/Index">Criar nova solicitacao</a>
+</div>

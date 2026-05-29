@@ -16,6 +16,8 @@ Este documento registra, de forma resumida, as melhorias aplicadas no projeto `D
 | `dotnet build HealthInsurance.slnx -nr:false -v:minimal` | Passou sem erros. |
 | `dotnet run --project Tests/Tests.csproj` | Passou com 24/24 testes. |
 | `dotnet run --project UI/UI.csproj` | Executou o fluxo demonstrativo. |
+| `docker compose up --build --abort-on-container-exit --exit-code-from validation validation` | Compila a solucao no container, executa os testes e roda a UI console de demonstracao. |
+| `docker compose up --build web` | Sobe a interface grafica em `http://localhost:8080` para demonstrar autorizacao, aprovacao parcial e faturamento. |
 | `git diff --check` | Passou. |
 
 Com isso, o projeto compila, executa e mantem as funcionalidades principais: solicitacao de autorizacao, elegibilidade, aprovacao, negativa, urgencia, faturamento, glosa, recurso administrativo e persistencia SQLite.
@@ -50,6 +52,8 @@ As melhorias deixaram o dominio mais claro, expressivo e protegido:
 - O recurso administrativo de glosa pode ser criado, persistido e recarregado.
 - O faturamento usa `Money`, com valor e moeda.
 - A `UI` usa injecao de dependencia para montar repositories, services e use cases.
+- A nova `WebUI` em Razor Pages demonstra o fluxo de autorizacao e faturamento no navegador, reaproveitando os services e use cases existentes.
+- Docker Compose permite rodar a demonstracao grafica e a validacao de regressao em ambiente reproduzivel.
 - A documentacao e os relatorios foram atualizados para refletir o codigo atual.
 
 

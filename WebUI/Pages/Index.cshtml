@@ -1,0 +1,88 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Solicitar autorizacao";
+}
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Fluxo executavel</p>
+        <h1>Solicitacao de autorizacao</h1>
+    </div>
+    <span class="badge">Plano @DemoData.PlanNumber</span>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert">@Model.ErrorMessage</div>
+}
+
+<form method="post" class="panel form-grid">
+    <input type="hidden" asp-for="Input.BeneficiaryId" />
+
+    <label>
+        Beneficiario
+        <input value="Maria Silva (@DemoData.BeneficiaryId)" disabled />
+    </label>
+
+    <label>
+        Plano
+        <input asp-for="Input.PlanNumber" />
+    </label>
+
+    <label>
+        Procedimento
+        <input asp-for="Input.ProcedureCode" />
+    </label>
+
+    <label>
+        CID
+        <input asp-for="Input.CidCode" />
+    </label>
+
+    <label>
+        Profissional solicitante
+        <input asp-for="Input.RequestingProfessional" />
+    </label>
+
+    <label>
+        Estabelecimento executor
+        <input asp-for="Input.ExecutingEstablishment" />
+    </label>
+
+    <label>
+        Data prevista
+        <input asp-for="Input.ExpectedDate" type="date" />
+    </label>
+
+    <label class="checkbox-row">
+        <input asp-for="Input.IsUrgentOrEmergency" />
+        Urgencia ou emergencia
+    </label>
+
+    <div class="wide">
+        <h2>Itens solicitados</h2>
+        <div class="items-grid">
+            <label>
+                Descricao
+                <input asp-for="Input.FirstItemDescription" />
+            </label>
+            <label>
+                Quantidade
+                <input asp-for="Input.FirstItemQuantity" type="number" min="1" />
+            </label>
+            <label>
+                Descricao
+                <input asp-for="Input.SecondItemDescription" />
+            </label>
+            <label>
+                Quantidade
+                <input asp-for="Input.SecondItemQuantity" type="number" min="1" />
+            </label>
+        </div>
+    </div>
+
+    <div class="actions wide">
+        <button type="submit">Criar autorizacao</button>
+    </div>
+</form>

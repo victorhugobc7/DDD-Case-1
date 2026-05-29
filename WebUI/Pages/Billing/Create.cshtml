@@ -1,0 +1,48 @@
+@page
+@model WebUI.Pages.Billing.CreateModel
+@{
+    ViewData["Title"] = "Gerar conta hospitalar";
+}
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Faturamento</p>
+        <h1>Gerar conta hospitalar</h1>
+    </div>
+    <span class="badge">@Model.Authorization.Status</span>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert">@Model.ErrorMessage</div>
+}
+
+<form method="post" class="panel">
+    <input type="hidden" asp-for="AuthorizationId" value="@Model.Authorization.Id" />
+    <h2>Itens aprovados</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Descricao</th>
+                <th>Quantidade aprovada</th>
+                <th>Valor unitario</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model.Authorization.Items.Where(item => item.ApprovedQuantity > 0))
+        {
+            <tr>
+                <td>@item.Description</td>
+                <td>@item.ApprovedQuantity</td>
+                <td>
+                    <input name="UnitValuesByItemId[@item.Id]" type="number" min="0.01" step="0.01" value="25.50" />
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <div class="actions">
+        <button type="submit">Criar conta</button>
+        <a asp-page="/Authorizations/Details" asp-route-id="@Model.Authorization.Id">Voltar</a>
+    </div>
+</form>
