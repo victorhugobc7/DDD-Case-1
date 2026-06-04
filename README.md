@@ -2,7 +2,7 @@
 
 **Versão da entrega implementada:** DDD tático v1
 
-**Status:** Implementação demonstrável do fluxo de Autorização de Procedimento
+**Status:** Implementação demonstrável dos fluxos de Autorização de Procedimento e Faturamento básico
 
 **Última Atualização:** Maio de 2026
 
@@ -16,7 +16,7 @@ Este projeto implementa a modelagem arquitetural de um **sistema de gestão de o
 - **Faturamento em Lotes TISS** (padrão obrigatório ANS)
 - **Auditoria e Glosas** (controle de fraude e pertinência)
 
-O código atual implementa o recorte **DDD tático v1**, concentrado em Autorização de Procedimento. Os tópicos ANS/TISS v2, GuiaTISS, FaturamentoXML e Auditoria formal permanecem descritos como evolução futura do modelo.
+O código atual implementa o recorte **DDD tático v1**, concentrado em Autorização de Procedimento e criação de conta hospitalar a partir de uma autorização aprovada. Os tópicos ANS/TISS v2, GuiaTISS, FaturamentoXML e Auditoria formal permanecem descritos como evolução futura do modelo.
 
 ---
 
@@ -24,25 +24,38 @@ O código atual implementa o recorte **DDD tático v1**, concentrado em Autoriza
 
 Projetos:
 
-- `Domain`: módulos de negócio em `Domain/Modules`, com entidades, value objects, enums, factories, contratos de repository e domain services agrupados por área.
-- `Application`: DTOs e `AuthorizationService`, coordenando casos de uso sem concentrar regra de negócio.
-- `Infra`: repository em memória para demonstração.
-- `UI`: console demonstrando solicitação pendente, aprovação parcial e urgência/emergência com auditoria posterior.
+- `Domain`: regras de negócio organizadas por tipo em `Domain/Aggregates`, `Domain/ValueObjects`, `Domain/Enums`, `Domain/Factories`, `Domain/Services` e `Domain/Repositories`, mantendo subpastas por área de negócio.
+- `Application`: DTOs, `AuthorizationService` e `BillingService`, coordenando casos de uso sem concentrar regra de negócio.
+- `Infra`: repositories SQLite para persistência local.
+- `UI`: console demonstrando solicitação pendente, aprovação parcial, criação de conta hospitalar e urgência/emergência com auditoria posterior.
 - `Tests`: runner de testes sem dependências externas.
+
+### Estrutura do Domain
+
+Os itens do domínio ficam separados por tipo técnico, com subpastas por área de negócio:
+
+| Tipo | Pasta | Responsabilidade |
+|------|-------|------------------|
+| **Aggregates** | `Domain/Aggregates` | Aggregate roots e entities internas que protegem regras de consistência. |
+| **ValueObjects** | `Domain/ValueObjects` | Tipos definidos pelo valor, sem identidade própria. |
+| **Enums** | `Domain/Enums` | Estados, categorias e motivos fechados do domínio. |
+| **Factories** | `Domain/Factories` | Criação padronizada de aggregates quando a montagem possui regra ou composição. |
+| **Services** | `Domain/Services` | Domain services com regras que cruzam mais de um aggregate ou entity. |
+| **Repositories** | `Domain/Repositories` | Contratos de persistência definidos pelo domínio. |
 
 ### Módulos de Domínio Implementados
 
-Os módulos ficam em `Domain/Modules`. A lista abaixo é a divisão modular do projeto; as tabelas de entidades v1.0/v2.0 continuam sendo apenas o catálogo de entidades e conceitos do domínio.
+Os módulos continuam representados nas subpastas por área de negócio. A lista abaixo é a divisão modular do projeto; as tabelas de entidades v1.0/v2.0 continuam sendo apenas o catálogo de entidades e conceitos do domínio.
 
 | Módulo | Pasta | Principais tipos |
 |--------|-------|------------------|
-| **Beneficiários** | `Domain/Modules/Beneficiarios` | `Beneficiary`, `BeneficiaryStatus` |
-| **Planos** | `Domain/Modules/Planos` | `Plan`, `PlanNumber`, `PlanType` |
-| **Procedimentos** | `Domain/Modules/Procedimentos` | `ProcedureCatalogItem`, `ProcedureCode`, `ProcedureType`, `CidCode` |
-| **Rede Credenciada** | `Domain/Modules/RedeCredenciada` | `ProfessionalRegistry` |
-| **Autorizações** | `Domain/Modules/Autorizacoes` | `AuthorizationRequest`, `RequestedItem`, `AuthorizationRequestFactory`, `EligibilityService`, `IAuthorizationRepository` |
-| **Faturamento** | `Domain/Modules/Faturamento` | `HospitalBill`, `BillItem`, `IHospitalBillRepository` |
-| **Auditoria** | `Domain/Modules/Auditoria` | `Glosa`, `AdministrativeAppeal`, `Evidence`, `GlosaReason`, `AppealStatus` |
+| **Beneficiários** | `Domain/Aggregates/Beneficiarios`, `Domain/Enums/Beneficiarios` | `Beneficiary`, `BeneficiaryStatus` |
+| **Planos** | `Domain/Aggregates/Planos`, `Domain/ValueObjects/Planos`, `Domain/Enums/Planos` | `Plan`, `PlanNumber`, `PlanType` |
+| **Procedimentos** | `Domain/Aggregates/Procedimentos`, `Domain/ValueObjects/Procedimentos`, `Domain/Enums/Procedimentos` | `ProcedureCatalogItem`, `ProcedureCode`, `ProcedureType`, `CidCode` |
+| **Rede Credenciada** | `Domain/ValueObjects/RedeCredenciada` | `ProfessionalRegistry` |
+| **Autorizações** | `Domain/Aggregates/Autorizacoes`, `Domain/Enums/Autorizacoes`, `Domain/Factories/Autorizacoes`, `Domain/Services/Autorizacoes`, `Domain/Repositories/Autorizacoes` | `AuthorizationRequest`, `RequestedItem`, `AuthorizationStatus`, `AuthorizationRequestFactory`, `EligibilityService`, `IAuthorizationRepository` |
+| **Faturamento** | `Domain/Aggregates/Faturamento`, `Domain/Repositories/Faturamento` | `HospitalBill`, `BillItem`, `IHospitalBillRepository` |
+| **Auditoria** | `Domain/Aggregates/Auditoria`, `Domain/ValueObjects/Auditoria`, `Domain/Enums/Auditoria` | `Glosa`, `AdministrativeAppeal`, `Evidence`, `GlosaReason`, `AppealStatus` |
 
 ### Roteiro da Atividade
 
@@ -122,8 +135,10 @@ As principais regras centralizadas no domínio foram:
 
 - **Factory**: `AuthorizationRequestFactory`, no módulo de Autorizações, cria uma solicitação completa com value objects e itens solicitados.
 - **Domain Service**: `EligibilityService`, no módulo de Autorizações, valida elegibilidade cruzando beneficiário, plano e procedimento.
-- **Application Service**: `AuthorizationService`, no projeto `Application`, coordena os casos de uso e chama o domínio sem concentrar regra de negócio.
-- **Repositories**: `IAuthorizationRepository` e `IHospitalBillRepository` são contratos do domínio. `AuthorizationRepository`, no projeto `Infra`, é a implementação em memória usada na demonstração.
+- **Application Service**: `AuthorizationService` e `BillingService`, no projeto `Application`, coordenam os casos de uso e chamam o domínio sem concentrar regra de negócio.
+- **Repositories**: `IAuthorizationRepository` e `IHospitalBillRepository` são contratos do domínio. `AuthorizationRepository` e `HospitalBillRepository`, no projeto `Infra`, persistem os aggregates em SQLite.
+
+Por padrão, a UI usa o arquivo `health-insurance.db` na pasta em que o programa é executado.
 
 #### 8. Quais foram as decisões mais difíceis de modelagem
 
