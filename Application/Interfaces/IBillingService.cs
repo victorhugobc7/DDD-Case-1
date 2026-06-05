@@ -10,5 +10,6 @@ public interface IBillingService
     Task<HospitalBillDto> GetHospitalBillAsync(Guid billId);
     Task<Guid> ApplyGlosaToItemAsync(ApplyGlosaDto dto);
     Task FileGlosaAppealAsync(FileGlosaAppealDto dto);
+    Task EvaluateGlosaAppealAsync(EvaluateGlosaAppealDto dto);
     Task CloseHospitalBillAsync(Guid billId);
 }

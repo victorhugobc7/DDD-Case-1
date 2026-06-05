@@ -89,6 +89,23 @@ public class HospitalBill
         item.FileAppeal(glosaId, evidenceDocuments);
     }
 
+    public void EvaluateGlosaAppeal(Guid itemId, Guid glosaId, bool approve)
+    {
+        EnsureOpen();
+
+        var item = FindItem(itemId);
+        var glosa = item.Glosas.SingleOrDefault(g => g.Id == glosaId)
+            ?? throw new InvalidOperationException("Glosa não encontrada.");
+            
+        if (glosa.Appeal == null)
+            throw new InvalidOperationException("Recurso não encontrado.");
+
+        if (approve)
+            glosa.Appeal.RevertGlosa();
+        else
+            glosa.Appeal.MaintainGlosa();
+    }
+
     public void Close()
     {
         EnsureOpen();

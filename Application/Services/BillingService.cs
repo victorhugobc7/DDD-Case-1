@@ -12,6 +12,7 @@ public class BillingService : IBillingService
     private readonly GetHospitalBillUseCase _getHospitalBill;
     private readonly ApplyGlosaToHospitalBillItemUseCase _applyGlosaToItem;
     private readonly FileGlosaAppealUseCase _fileGlosaAppeal;
+    private readonly EvaluateGlosaAppealUseCase _evaluateGlosaAppeal;
     private readonly CloseHospitalBillUseCase _closeHospitalBill;
 
     public BillingService(
@@ -19,12 +20,14 @@ public class BillingService : IBillingService
         GetHospitalBillUseCase getHospitalBill,
         ApplyGlosaToHospitalBillItemUseCase applyGlosaToItem,
         FileGlosaAppealUseCase fileGlosaAppeal,
+        EvaluateGlosaAppealUseCase evaluateGlosaAppeal,
         CloseHospitalBillUseCase closeHospitalBill)
     {
         _createHospitalBillFromAuthorization = createHospitalBillFromAuthorization ?? throw new ArgumentNullException(nameof(createHospitalBillFromAuthorization));
         _getHospitalBill = getHospitalBill ?? throw new ArgumentNullException(nameof(getHospitalBill));
         _applyGlosaToItem = applyGlosaToItem ?? throw new ArgumentNullException(nameof(applyGlosaToItem));
         _fileGlosaAppeal = fileGlosaAppeal ?? throw new ArgumentNullException(nameof(fileGlosaAppeal));
+        _evaluateGlosaAppeal = evaluateGlosaAppeal ?? throw new ArgumentNullException(nameof(evaluateGlosaAppeal));
         _closeHospitalBill = closeHospitalBill ?? throw new ArgumentNullException(nameof(closeHospitalBill));
     }
 
@@ -46,6 +49,11 @@ public class BillingService : IBillingService
     public async Task FileGlosaAppealAsync(FileGlosaAppealDto dto)
     {
         await _fileGlosaAppeal.ExecuteAsync(dto);
+    }
+
+    public async Task EvaluateGlosaAppealAsync(EvaluateGlosaAppealDto dto)
+    {
+        await _evaluateGlosaAppeal.ExecuteAsync(dto);
     }
 
     public async Task CloseHospitalBillAsync(Guid billId)
