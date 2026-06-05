@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plano de Saúde — Gestão de Autorizações e Faturamento</title>
+    <meta name="description" content="Sistema de gestão de plano de saúde — autorizações, faturamento, glosas e recursos administrativos.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header" id="appHeader">
+    <div class="header-left">
+        <div class="logo-icon">PS</div>
+        <h1>Plano de Saúde <span>DDD</span></h1>
+    </div>
+    <div class="header-right">
+        <div class="seed-badge" id="seedBadge">
+            <span class="seed-dot"></span>
+            <span id="seedBadgeText">Sem dados</span>
+        </div>
+        <button class="btn btn-teal btn-sm" id="btnSeed" onclick="seedDatabase()">
+            <span class="spinner"></span>
+            <span class="btn-text">Inicializar Dados</span>
+        </button>
+    </div>
+</header>
+
+<div class="app-layout">
+
+    <nav class="sidebar" id="sidebar">
+        <div class="nav-group">
+            <h3 class="nav-group-title">Usuário Normal</h3>
+            <button class="nav-item active" data-section="auth-request" onclick="showSection('auth-request', this)">
+                Nova Solicitação
+            </button>
+            <button class="nav-item" data-section="bill-create" onclick="showSection('bill-create', this)">
+                Criar Fatura
+            </button>
+            <button class="nav-item" data-section="user-manage" onclick="showSection('user-manage', this)">
+                Consultar e Recorrer
+            </button>
+        </div>
+        <div class="nav-group">
+            <h3 class="nav-group-title">Gestor / Auditor</h3>
+            <button class="nav-item" data-section="auth-manage" onclick="showSection('auth-manage', this)">
+                Avaliar Autorização
+            </button>
+            <button class="nav-item" data-section="bill-manage" onclick="showSection('bill-manage', this)">
+                Auditar Fatura
+            </button>
+        </div>
+    </nav>
+
+    <main class="content" id="content">
+
+        <div class="seed-info" id="seedInfo">
+            <h4>Dados de referência carregados</h4>
+            <div class="seed-data" id="seedDataDisplay"></div>
+        </div>
+
+        <!-- ============================================================
+             SECTION: Authorization Request (User)
+             ============================================================ -->
+        <section class="section active" id="section-auth-request">
+            <h2 class="section-title">Nova Solicitação de Autorização</h2>
+            <p class="section-subtitle">Preencha os dados para solicitar autorização de procedimento junto ao plano de saúde.</p>
+
+            <div class="card">
+                <div class="card-title">Dados da Solicitação</div>
+                <form id="formAuthRequest" onsubmit="requestAuthorization(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="authBeneficiaryId">ID do Beneficiário</label>
+                            <input class="form-input" id="authBeneficiaryId" type="text" placeholder="GUID do beneficiário" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="authPlanNumber">Número do Plano</label>
+                            <input class="form-input" id="authPlanNumber" type="text" placeholder="Ex: 123456" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="authProcedureCode">Código do Procedimento</label>
+                            <input class="form-input" id="authProcedureCode" type="text" placeholder="Ex: 9999" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="authCidCode">Código CID</label>
+                            <input class="form-input" id="authCidCode" type="text" placeholder="Ex: M54.5" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="authProfessional">Profissional Solicitante</label>
+                            <input class="form-input" id="authProfessional" type="text" placeholder="Ex: CRM-12345" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="authEstablishment">Estabelecimento Executante</label>
+                            <input class="form-input" id="authEstablishment" type="text" placeholder="Ex: Hospital BemAli" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="authExpectedDate">Data Prevista</label>
+                            <input class="form-input" id="authExpectedDate" type="datetime-local" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Urgência / Emergência</label>
+                            <div class="form-toggle-row">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="authIsUrgent">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label" id="urgentLabel">Não</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="divider">
+
+                    <div class="card-title">Itens Solicitados</div>
+                    <div class="item-list" id="requestedItemsList"></div>
+                    <button type="button" class="btn-add-item" onclick="addRequestedItem()">
+                        ＋ Adicionar Item
+                    </button>
+
+                    <hr class="divider">
+
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary" id="btnSubmitAuth">
+                            <span class="spinner"></span>
+                            <span class="btn-text">Enviar Solicitação</span>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="result-panel" id="authRequestResult"></div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION: Bill Create (User)
+             ============================================================ -->
+        <section class="section" id="section-bill-create">
+            <h2 class="section-title">Criar Fatura Hospitalar</h2>
+            <p class="section-subtitle">Gere uma fatura hospitalar a partir de uma autorização aprovada.</p>
+
+            <div class="card">
+                <div class="card-title">Carregar Autorização</div>
+                <div class="lookup-bar">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label" for="billAuthId">ID da Autorização Aprovada</label>
+                        <input class="form-input" id="billAuthId" type="text" placeholder="GUID da autorização aprovada">
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="btnLoadAuthForBill" onclick="loadAuthForBill()">
+                        <span class="spinner"></span>
+                        <span class="btn-text">Carregar</span>
+                    </button>
+                </div>
+
+                <div id="billItemsContainer" style="display:none;margin-top:22px">
+                    <hr class="divider">
+                    <div class="card-title">Valores Unitários por Item</div>
+                    <div id="billItemsList"></div>
+                    <div class="btn-group">
+                        <button class="btn btn-teal" id="btnCreateBill" onclick="createBill()">
+                            <span class="spinner"></span>
+                            <span class="btn-text">Criar Fatura Hospitalar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="result-panel" id="billCreateResult"></div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION: User Manage (User)
+             ============================================================ -->
+        <section class="section" id="section-user-manage">
+            <h2 class="section-title">Consultar e Recorrer</h2>
+            <p class="section-subtitle">Acompanhe o status de sua autorização ou fatura e envie recursos se necessário.</p>
+
+            <div class="card">
+                <div class="card-title">Buscar Fatura</div>
+                <div class="lookup-bar">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label" for="lookupUserBillId">ID da Fatura</label>
+                        <input class="form-input" id="lookupUserBillId" type="text" placeholder="Cole o GUID da fatura">
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="btnLookupUserBill" onclick="getUserBillStatus()">
+                        <span class="spinner"></span>
+                        <span class="btn-text">Consultar</span>
+                    </button>
+                </div>
+
+                <div class="result-panel" id="userBillStatusResult"></div>
+
+                <div id="userBillActionsContainer" style="display:none">
+                    <div class="action-panel">
+                        <h4>Ações do Usuário</h4>
+                        
+                        <details class="card" style="padding:18px;cursor:pointer">
+                            <summary style="font-weight:600;font-size:0.88rem;color:var(--teal)">Enviar Recurso de Glosa</summary>
+                            <div style="margin-top:14px">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label class="form-label" for="userAppealItemId">ID do Item</label>
+                                        <select class="form-select" id="userAppealItemId" onchange="updateUserGlosaSelect()"></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="userAppealGlosaId">ID da Glosa</label>
+                                        <select class="form-select" id="userAppealGlosaId"></select>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top:14px">
+                                    <div class="card-title" style="font-size:0.85rem">Documentos de Evidência</div>
+                                    <div id="userEvidenceList" class="item-list"></div>
+                                    <button type="button" class="btn-add-item" onclick="addUserEvidence()" style="margin-top:8px">
+                                        ＋ Adicionar Evidência
+                                    </button>
+                                </div>
+
+                                <button class="btn btn-teal btn-sm" style="margin-top:14px" id="btnUserFileAppeal" onclick="userFileAppeal()">
+                                    <span class="spinner"></span>
+                                    <span class="btn-text">Registrar Recurso</span>
+                                </button>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION: Authorization Manage (Manager)
+             ============================================================ -->
+        <section class="section" id="section-auth-manage">
+            <h2 class="section-title">Avaliar Autorizações</h2>
+            <p class="section-subtitle">Área do gestor para aprovar, negar ou solicitar documentos adicionais.</p>
+
+            <div class="card">
+                <div class="card-title">Buscar Autorização</div>
+                <div class="lookup-bar">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label" for="lookupAuthId">ID da Autorização</label>
+                        <input class="form-input" id="lookupAuthId" type="text" placeholder="Cole o GUID da autorização">
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="btnLookupAuth" onclick="getAuthorizationStatus()">
+                        <span class="spinner"></span>
+                        <span class="btn-text">Consultar</span>
+                    </button>
+                </div>
+
+                <div class="result-panel" id="authStatusResult"></div>
+
+                <div id="authActionsContainer" style="display:none">
+                    <div class="action-panel">
+                        <h4>Ações do Gestor</h4>
+
+                        <div class="btn-group" style="margin-bottom:18px">
+                            <button class="btn btn-success btn-sm" id="btnApproveFull" onclick="approveAuthorization()">
+                                <span class="spinner"></span>
+                                <span class="btn-text">Aprovar Integralmente</span>
+                            </button>
+                        </div>
+
+                        <details class="card" style="padding:18px;margin-bottom:14px;cursor:pointer">
+                            <summary style="font-weight:600;font-size:0.88rem;color:var(--warning)">Aprovar Parcialmente</summary>
+                            <div style="margin-top:14px">
+                                <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px">
+                                    Defina as quantidades aprovadas por item. Os itens aparecerão após a consulta.
+                                </p>
+                                <div id="partialApprovalItems"></div>
+                                <button class="btn btn-warning btn-sm" style="margin-top:12px" id="btnApprovePartial" onclick="approvePartially()">
+                                    <span class="spinner"></span>
+                                    <span class="btn-text">Confirmar Aprovação Parcial</span>
+                                </button>
+                            </div>
+                        </details>
+
+                        <details class="card" style="padding:18px;margin-bottom:14px;cursor:pointer">
+                            <summary style="font-weight:600;font-size:0.88rem;color:var(--error)">Negar Autorização</summary>
+                            <div style="margin-top:14px">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label class="form-label" for="denyReason">Motivo da Glosa</label>
+                                        <select class="form-select" id="denyReason">
+                                            <option value="ProcedimentoNaoAutorizado">Procedimento não autorizado</option>
+                                            <option value="DivergenciaDeCodigo">Divergência de código</option>
+                                            <option value="ExcessoDeQuantidade">Excesso de quantidade</option>
+                                            <option value="FaltaDeDocumentacao">Falta de documentação</option>
+                                            <option value="ProcedimentoForaDaCoberturaContratual">Fora da cobertura contratual</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="denyDetails">Detalhes</label>
+                                        <input class="form-input" id="denyDetails" type="text" placeholder="Descrição do motivo">
+                                    </div>
+                                </div>
+                                <button class="btn btn-danger btn-sm" style="margin-top:12px" id="btnDeny" onclick="denyAuthorization()">
+                                    <span class="spinner"></span>
+                                    <span class="btn-text">Confirmar Negação</span>
+                                </button>
+                            </div>
+                        </details>
+
+                        <details class="card" style="padding:18px;cursor:pointer">
+                            <summary style="font-weight:600;font-size:0.88rem;color:var(--accent)">Registrar Pendência de Documentos</summary>
+                            <div style="margin-top:14px">
+                                <div class="form-group">
+                                    <label class="form-label" for="pendingDocs">Documentos Pendentes</label>
+                                    <textarea class="form-textarea" id="pendingDocs" placeholder="Descreva os documentos necessários"></textarea>
+                                </div>
+                                <button class="btn btn-primary btn-sm" style="margin-top:12px" id="btnPending" onclick="registerPendingDocuments()">
+                                    <span class="spinner"></span>
+                                    <span class="btn-text">Registrar Pendência</span>
+                                </button>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION: Bill Manage (Manager)
+             ============================================================ -->
+        <section class="section" id="section-bill-manage">
+            <h2 class="section-title">Auditar Faturas</h2>
+            <p class="section-subtitle">Área do gestor para avaliar recursos, aplicar glosas e encerrar faturas.</p>
+
+            <div class="card">
+                <div class="card-title">Buscar Fatura</div>
+                <div class="lookup-bar">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label" for="lookupManagerBillId">ID da Fatura</label>
+                        <input class="form-input" id="lookupManagerBillId" type="text" placeholder="Cole o GUID da fatura">
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="btnLookupManagerBill" onclick="getManagerBillStatus()">
+                        <span class="spinner"></span>
+                        <span class="btn-text">Consultar</span>
+                    </button>
+                </div>
+
+                <div class="result-panel" id="managerBillStatusResult"></div>
+
+                <div id="managerBillActionsContainer" style="display:none">
+                    <div class="action-panel">
+                        <h4>Ações do Gestor</h4>
+
+                        <div class="btn-group" style="margin-bottom:18px">
+                            <button class="btn btn-danger btn-sm" id="btnCloseBill" onclick="closeBill()">
+                                <span class="spinner"></span>
+                                <span class="btn-text">Encerrar Fatura</span>
+                            </button>
+                        </div>
+
+                        <details class="card" style="padding:18px;margin-bottom:14px;cursor:pointer">
+                            <summary style="font-weight:600;font-size:0.88rem;color:var(--error)">Aplicar Glosa em Item</summary>
+                            <div style="margin-top:14px">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label class="form-label" for="glosaItemId">ID do Item</label>
+                                        <select class="form-select" id="glosaItemId"></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="glosaReason">Motivo</label>
+                                        <select class="form-select" id="glosaReason">
+                                            <option value="ProcedimentoNaoAutorizado">Procedimento não autorizado</option>
+                                            <option value="DivergenciaDeCodigo">Divergência de código</option>
+                                            <option value="ExcessoDeQuantidade">Excesso de quantidade</option>
+                                            <option value="FaltaDeDocumentacao">Falta de documentação</option>
+                                            <option value="ProcedimentoForaDaCoberturaContratual">Fora da cobertura contratual</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group full-width">
+                                        <label class="form-label" for="glosaDetails">Detalhes</label>
+                                        <input class="form-input" id="glosaDetails" type="text" placeholder="Justificativa da glosa">
+                                    </div>
+                                </div>
+                                <button class="btn btn-danger btn-sm" style="margin-top:12px" id="btnApplyGlosa" onclick="applyGlosa()">
+                                    <span class="spinner"></span>
+                                    <span class="btn-text">Aplicar Glosa</span>
+                                </button>
+                            </div>
+                        </details>
+
+                        <details class="card" style="padding:18px;cursor:pointer">
+                            <summary style="font-weight:600;font-size:0.88rem;color:var(--teal)">Avaliar Recurso de Glosa</summary>
+                            <div style="margin-top:14px">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label class="form-label" for="evalAppealItemId">ID do Item</label>
+                                        <select class="form-select" id="evalAppealItemId" onchange="updateEvalGlosaSelect()"></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="evalAppealGlosaId">ID da Glosa com Recurso</label>
+                                        <select class="form-select" id="evalAppealGlosaId"></select>
+                                    </div>
+                                </div>
+
+                                <div class="btn-group" style="margin-top:14px">
+                                    <button class="btn btn-success btn-sm" id="btnApproveAppeal" onclick="evaluateAppeal(true)">
+                                        <span class="spinner"></span>
+                                        <span class="btn-text">Reverter Glosa (Aprovar Recurso)</span>
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" id="btnDenyAppeal" onclick="evaluateAppeal(false)">
+                                        <span class="spinner"></span>
+                                        <span class="btn-text">Manter Glosa (Negar Recurso)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
