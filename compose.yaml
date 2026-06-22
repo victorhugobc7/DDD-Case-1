@@ -1,0 +1,20 @@
+services:
+  web:
+    build:
+      context: .
+      target: web
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      HEALTH_INSURANCE_DB: /data/health-insurance-web.db
+    ports:
+      - "8080:8080"
+    volumes:
+      - webui-data:/data
+
+  validation:
+    build:
+      context: .
+      target: validation
+
+volumes:
+  webui-data:

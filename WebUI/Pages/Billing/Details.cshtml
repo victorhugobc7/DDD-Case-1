@@ -1,0 +1,59 @@
+@page
+@model WebUI.Pages.Billing.DetailsModel
+@{
+    ViewData["Title"] = "Conta hospitalar";
+}
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Conta hospitalar</p>
+        <h1>@Model.Bill.Id</h1>
+    </div>
+    <span class="badge">@Model.Bill.Status</span>
+</section>
+
+<section class="panel">
+    <dl class="summary-grid">
+        <div>
+            <dt>Beneficiario</dt>
+            <dd>@Model.Bill.BeneficiaryId</dd>
+        </div>
+        <div>
+            <dt>Estabelecimento</dt>
+            <dd>@Model.Bill.ExecutingEstablishment</dd>
+        </div>
+        <div>
+            <dt>Total</dt>
+            <dd>@Model.Bill.TotalValue.Amount.ToString("0.00") @Model.Bill.TotalValue.Currency</dd>
+        </div>
+    </dl>
+</section>
+
+<section class="panel">
+    <h2>Itens faturados</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Descricao</th>
+                <th>Quantidade</th>
+                <th>Valor unitario</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model.Bill.Items)
+        {
+            <tr>
+                <td>@item.Description</td>
+                <td>@item.Quantity</td>
+                <td>@item.UnitValue.Amount.ToString("0.00") @item.UnitValue.Currency</td>
+                <td>@item.TotalValue.Amount.ToString("0.00") @item.TotalValue.Currency</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>
+
+<div class="actions secondary-actions">
+    <a asp-page="/Index">Criar nova solicitacao</a>
+</div>
