@@ -2,16 +2,21 @@ using Application.DTOs;
 using Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 
 namespace WebUI.Pages.Authorizations;
 
 public class DetailsModel : PageModel
 {
     private readonly IAuthorizationService _authorizationService;
+    private readonly ILogger<DetailsModel> _logger;
 
-    public DetailsModel(IAuthorizationService authorizationService)
+    public DetailsModel(
+        IAuthorizationService authorizationService,
+        ILogger<DetailsModel> logger)
     {
         _authorizationService = authorizationService;
+        _logger = logger;
     }
 
     [BindProperty]
@@ -43,7 +48,8 @@ public class DetailsModel : PageModel
         catch (Exception ex)
         {
             Authorization = await _authorizationService.GetAuthorizationStatusAsync(AuthorizationId);
-            ErrorMessage = ex.Message;
+            _logger.LogError(ex, "Erro ao aprovar autorização parcialmente.");
+            ErrorMessage = "Não foi possível aprovar parcialmente a autorização. Tente novamente.";
             return Page();
         }
     }

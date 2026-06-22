@@ -15,8 +15,6 @@ services:
     build:
       context: .
       target: validation
-    environment:
-      HEALTH_INSURANCE_DB: /tmp/health-insurance-validation.db
 
 volumes:
   webui-data:

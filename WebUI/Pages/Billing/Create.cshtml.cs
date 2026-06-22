@@ -2,6 +2,7 @@ using Application.DTOs;
 using Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 
 namespace WebUI.Pages.Billing;
 
@@ -9,13 +10,16 @@ public class CreateModel : PageModel
 {
     private readonly IAuthorizationService _authorizationService;
     private readonly IBillingService _billingService;
+    private readonly ILogger<CreateModel> _logger;
 
     public CreateModel(
         IAuthorizationService authorizationService,
-        IBillingService billingService)
+        IBillingService billingService,
+        ILogger<CreateModel> logger)
     {
         _authorizationService = authorizationService;
         _billingService = billingService;
+        _logger = logger;
     }
 
     [BindProperty]
@@ -50,7 +54,8 @@ public class CreateModel : PageModel
         catch (Exception ex)
         {
             Authorization = await _authorizationService.GetAuthorizationStatusAsync(AuthorizationId);
-            ErrorMessage = ex.Message;
+            _logger.LogError(ex, "Erro ao criar faturamento.");
+            ErrorMessage = "Não foi possível criar o faturamento. Tente novamente.";
             return Page();
         }
     }

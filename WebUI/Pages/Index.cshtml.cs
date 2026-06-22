@@ -2,16 +2,21 @@ using Application.DTOs;
 using Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 
 namespace WebUI.Pages;
 
 public class IndexModel : PageModel
 {
     private readonly IAuthorizationService _authorizationService;
+    private readonly ILogger<IndexModel> _logger;
 
-    public IndexModel(IAuthorizationService authorizationService)
+    public IndexModel(
+        IAuthorizationService authorizationService,
+        ILogger<IndexModel> logger)
     {
         _authorizationService = authorizationService;
+        _logger = logger;
     }
 
     [BindProperty]
@@ -33,7 +38,8 @@ public class IndexModel : PageModel
         }
         catch (Exception ex)
         {
-            ErrorMessage = ex.Message;
+            _logger.LogError(ex, "Erro ao solicitar autorização.");
+            ErrorMessage = "Não foi possível solicitar a autorização. Tente novamente.";
             return Page();
         }
     }

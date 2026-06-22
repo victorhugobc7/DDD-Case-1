@@ -31,7 +31,7 @@ public static class DemoData
 
         await procedureRepository.AddAsync(new ProcedureCatalogItem(
             new ProcedureCode(ProcedureCode),
-            "Procedimento eletivo de demonstracao",
+            "Procedimento eletivo de demonstração",
             ProcedureType.ExameSimples,
             18,
             65));
