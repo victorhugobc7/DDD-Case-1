@@ -1,0 +1,23 @@
+using System;
+using System.Text.RegularExpressions;
+using Domain.Common;
+
+namespace Domain.Solicitacao.ValueObjects;
+
+public record CidCode : ValueObject
+{
+    public string Value { get; }
+
+    public CidCode(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("O código CID não pode ser vazio.", nameof(value));
+
+        if (!Regex.IsMatch(value, @"^[A-Z][0-9]{2}(\.[0-9])?$"))
+            throw new ArgumentException("O código CID fornecido é inválido.", nameof(value));
+
+        Value = value;
+    }
+
+    public override string ToString() => Value;
+}
